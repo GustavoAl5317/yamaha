@@ -31,7 +31,8 @@ function loadDriver(): any | null {
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     return require("informixdb");
-  } catch {
+  } catch (e: any) {
+    console.error("[informix] falha ao carregar o driver:", e?.message);
     return null;
   }
 }
