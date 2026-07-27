@@ -18,7 +18,7 @@ export default function ExportButton({ queueId }: { queueId: string }) {
         <Download size={15} /> Exportar relatório
       </button>
       {open && (
-        <div style={{ position: "absolute", right: 0, top: "110%", background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 10, padding: 6, minWidth: 200, zIndex: 20, boxShadow: "var(--shadow)" }}>
+        <div style={{ position: "absolute", right: 0, top: "110%", background: "var(--raised)", border: "1px solid var(--line)", borderRadius: 10, padding: 6, minWidth: 200, zIndex: 20, boxShadow: "var(--shadow)" }}>
           <a className="btn" style={{ width: "100%", justifyContent: "flex-start", marginBottom: 4, border: "none", background: "transparent" }} href={`/api/report?queueId=${queueId}&format=csv`}>
             <Download size={14} /> Baixar CSV
           </a>

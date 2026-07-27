@@ -1,72 +1,62 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import ConnectionBadge, { Conn } from "@/components/ConnectionBadge";
 import type { QueueConfig } from "@/lib/types";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Database } from "lucide-react";
 
 export default function ConfigPage() {
   const [queues, setQueues] = useState<QueueConfig[]>([]);
-  const [conn, setConn] = useState<Conn | null>(null);
+  const [conn, setConn] = useState<any>(null);
   const [info, setInfo] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetch("/api/health").then((r) => r.json()).then((j) => { setConn(j); setInfo(j.info); });
-    fetch("/api/queues")
-      .then((r) => r.json())
+    fetch("/api/queues").then((r) => r.json())
       .then((j) => (j.ok ? setQueues(j.queues) : setError(j.error)))
-      .catch((e) => setError(String(e)))
-      .finally(() => setLoading(false));
+      .catch((e) => setError(String(e))).finally(() => setLoading(false));
   }, []);
 
   return (
-    <div className="content" style={{ maxWidth: 1100, margin: "0 auto" }}>
-      <div className="content__head">
-        <div className="content__title">
-          <h2>Configuração & Ambiente</h2>
-          <p>Conexão com o UCCX e filas detectadas</p>
+    <main className="content" style={{ maxWidth: 1000, margin: "0 auto" }}>
+      <div className="topbar">
+        <div className="topbar__title">
+          <h2><Database size={20} /> Ambiente & Fontes</h2>
+          <div className="topbar__meta"><span>Conexão com o UCCX e filas detectadas</span></div>
         </div>
-        <div className="content__actions">
-          <ConnectionBadge conn={conn} />
-          <Link className="btn" href="/dashboard"><ArrowLeft size={15} /> Voltar ao painel</Link>
+        <Link className="btn" href="/dashboard"><ArrowLeft size={15} /> Voltar ao painel</Link>
+      </div>
+
+      <div className="panel" style={{ marginBottom: 16 }}>
+        <div className="panel__hd"><h3>Fonte de dados</h3>
+          <span className="chip" style={{ color: conn?.ok ? "var(--ok)" : "var(--crit)", borderColor: conn?.ok ? "#1e5c43" : "#7a2233" }}>
+            {conn?.ok ? "conectado" : "sem fonte"}
+          </span>
+        </div>
+        <div className="deflist">
+          <div><dt>Status</dt><dd>{conn?.message ?? "—"}</dd></div>
+          <div><dt>Host UCCX</dt><dd>{info?.host ?? "—"}</dd></div>
+          <div><dt>Banco</dt><dd>Informix db_cra · porta {info?.finessePort ? "1504" : "1504"}</dd></div>
+          <div><dt>Supervisor Finesse</dt><dd><span className={"badge " + (info?.hasSupervisor ? "badge--ok" : "badge--wait")}>{info?.hasSupervisor ? "configurado" : "não configurado"}</span></dd></div>
         </div>
       </div>
 
-      <div className="card" style={{ marginBottom: 16 }}>
-        <div className="card__title">Ambiente</div>
-        <table className="ctable">
-          <tbody>
-            <tr><td>Host UCCX</td><td>{info?.host ?? "—"}</td></tr>
-            <tr><td>Porta adminapi</td><td>{info?.adminPort ?? "—"}</td></tr>
-            <tr><td>Porta Finesse</td><td>{info?.finessePort ?? "—"}</td></tr>
-            <tr><td>Usuário supervisor (tempo real)</td><td><span className={"badge " + (info?.hasSupervisor ? "badge--ok" : "badge--warn")}>{info?.hasSupervisor ? "Configurado" : "Não configurado"}</span></td></tr>
-            <tr><td>Status da conexão</td><td>{conn?.message ?? "—"}</td></tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div className="card">
-        <div className="card__title">Filas detectadas ({queues.length})</div>
-        {loading && <div className="state"><div className="spinner" /><p>Carregando…</p></div>}
-        {error && <div className="state state--crit"><p>{error}</p></div>}
+      <div className="panel">
+        <div className="panel__hd"><h3>Filas detectadas</h3><span className="chip">{queues.length}</span></div>
+        {loading && <div className="empty"><div className="spinner" /><p>Carregando…</p></div>}
+        {error && <div className="empty"><p style={{ color: "var(--crit)" }}>{error}</p></div>}
         {!loading && !error && (
-          <table className="ctable">
-            <tbody>
-              <tr style={{ color: "var(--txt-dim)" }}>
-                <td>Fila</td><td>Meta SL / Skill</td>
-              </tr>
-              {queues.map((q) => (
-                <tr key={q.id}>
-                  <td><Link href={`/dashboard`} style={{ color: "var(--txt)" }}>#{q.id} · {q.name}</Link></td>
-                  <td>{q.serviceLevelPct}% em {q.serviceLevelSec}s · {q.skill ?? "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="deflist">
+            {queues.map((q) => (
+              <div key={q.id}>
+                <dt><Link href="/dashboard" style={{ color: "var(--text)" }}>#{q.id} · {q.name}</Link></dt>
+                <dd style={{ color: "var(--text-dim)", fontWeight: 500 }}>{q.serviceLevelPct}% em {q.serviceLevelSec}s</dd>
+              </div>
+            ))}
+          </div>
         )}
       </div>
-    </div>
+    </main>
   );
 }

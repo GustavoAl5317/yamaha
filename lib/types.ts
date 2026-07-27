@@ -45,6 +45,14 @@ export interface QueueKpis {
   avgHandleSec: number | null; // TMA
 }
 
+// Volume por hora do dia (fonte: contactqueuedetail) — para o gráfico temporal
+export interface HourPoint {
+  hour: string;       // "13"
+  received: number;
+  answered: number;
+  abandoned: number;
+}
+
 // Resposta unificada de "tempo real" do painel
 export interface QueueLive {
   source: "informix" | "finesse" | "none";

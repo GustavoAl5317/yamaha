@@ -1,4 +1,4 @@
-import type { QueueConfig, QueueRealtime, QueueKpis, QueueLive } from "./types";
+import type { QueueConfig, QueueRealtime, QueueKpis, QueueLive, HourPoint } from "./types";
 
 /**
  * Fonte de dados real: banco Informix db_cra do UCCX.
@@ -268,6 +268,63 @@ export async function getLive(csqId: string, csqName: string): Promise<QueueLive
       ts: Date.now(),
     };
     return { source: "informix", ts: Date.now(), kpis, instant };
+  } finally {
+    try { conn?.closeSync(); } catch { /* noop */ }
+  }
+}
+
+/** Testa a conexão real com o banco db_cra (usado pelo status de conexão). */
+export async function pingInformix(): Promise<{ ok: boolean; message: string }> {
+  const ibmdb = loadDriver();
+  if (!ibmdb) return { ok: false, message: "Driver Informix indisponível neste ambiente" };
+  let conn: any;
+  try {
+    conn = await open(ibmdb);
+  } catch (e: any) {
+    return { ok: false, message: `Sem conexão ao banco: ${String(e?.message || e).split("\n")[0]}` };
+  }
+  try {
+    await query(conn, "SELECT FIRST 1 CURRENT FROM systables");
+    return { ok: true, message: "Banco db_cra conectado" };
+  } catch (e: any) {
+    return { ok: false, message: String(e?.message || e).split("\n")[0] };
+  } finally {
+    try { conn?.closeSync(); } catch { /* noop */ }
+  }
+}
+
+/** Volume por hora do dia para o gráfico temporal (dado histórico real). */
+export async function getHourly(csqId: string): Promise<HourPoint[]> {
+  const ibmdb = loadDriver();
+  if (!ibmdb) return [];
+  let conn: any;
+  try {
+    conn = await open(ibmdb);
+  } catch {
+    return [];
+  }
+  try {
+    const rows = await query(
+      conn,
+      `SELECT TO_CHAR(cqd.startdatetime, '%H') hora,
+              COUNT(*) received,
+              SUM(CASE WHEN cqd.disposition = 2 THEN 1 ELSE 0 END) answered,
+              SUM(CASE WHEN cqd.disposition = 1 THEN 1 ELSE 0 END) abandoned
+         FROM contactqueuedetail cqd, contactservicequeue csq
+        WHERE cqd.targetid = csq.recordid AND cqd.targettype = 0
+          AND csq.contactservicequeueid = ${Number(csqId)}
+          AND cqd.startdatetime >= TODAY
+        GROUP BY 1 ORDER BY 1`,
+    );
+    return (rows || []).map((r) => ({
+      hour: String(r.hora),
+      received: num(r.received),
+      answered: num(r.answered),
+      abandoned: num(r.abandoned),
+    }));
+  } catch (e: any) {
+    console.error("[informix] getHourly:", e?.message);
+    return [];
   } finally {
     try { conn?.closeSync(); } catch { /* noop */ }
   }

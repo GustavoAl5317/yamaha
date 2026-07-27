@@ -1,8 +1,9 @@
 "use client";
 import { useMemo, useState } from "react";
-import { Search, ListFilter, Settings, LayoutDashboard } from "lucide-react";
-import type { QueueConfig } from "@/lib/types";
 import Link from "next/link";
+import { Search, LayoutGrid, Settings, Activity } from "lucide-react";
+import type { QueueConfig } from "@/lib/types";
+import type { Conn } from "./ConnectionBadge";
 
 interface Props {
   queues: QueueConfig[];
@@ -10,9 +11,10 @@ interface Props {
   onSelect: (id: string) => void;
   loading: boolean;
   error: string | null;
+  conn: Conn | null;
 }
 
-export default function Sidebar({ queues, selectedId, onSelect, loading, error }: Props) {
+export default function Sidebar({ queues, selectedId, onSelect, loading, error, conn }: Props) {
   const [q, setQ] = useState("");
   const filtered = useMemo(
     () => queues.filter((x) => x.name.toLowerCase().includes(q.toLowerCase()) || x.id.includes(q)),
@@ -22,43 +24,36 @@ export default function Sidebar({ queues, selectedId, onSelect, loading, error }
   return (
     <aside className="side">
       <div className="side__brand">
-        <span className="side__mark" />
+        <span className="side__logo"><Activity color="#fff" strokeWidth={2.4} /></span>
         <div>
-          <h1>Help Desk <span>Yamaha</span></h1>
-          <p>Painel UCCX</p>
+          <h1>Central de Operações</h1>
+          <p>Yamaha · Help Desk</p>
         </div>
+      </div>
+
+      <div className="side__conn" data-ok={conn ? String(conn.ok) : "false"}>
+        <span className="dot" />
+        <span>{conn ? (conn.ok ? "Fonte conectada" : "Fonte indisponível") : "Verificando…"}</span>
+        <small style={{ marginLeft: "auto" }}>{conn?.ok ? "db_cra" : ""}</small>
       </div>
 
       <div className="side__search">
-        <div style={{ position: "relative" }}>
-          <Search size={15} style={{ position: "absolute", left: 10, top: 11, color: "var(--txt-mute)" }} />
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Buscar fila..."
-            style={{ paddingLeft: 32 }}
-          />
+        <Search size={15} />
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar fila…" />
+      </div>
+
+      <div className="side__scroll">
+        <div className="side__grouphdr">
+          <span>Filas de atendimento</span>
+          <span>{loading ? "…" : filtered.length}</span>
         </div>
-      </div>
 
-      <div className="side__section">
-        <span><ListFilter size={12} style={{ verticalAlign: "-2px" }} /> Filas detectadas</span>
-        <span>{loading ? "…" : filtered.length}</span>
-      </div>
+        {loading && <div className="empty"><div className="spinner" /><p>Carregando filas…</p></div>}
+        {error && !loading && <div className="empty"><p style={{ color: "var(--crit)" }}>{error}</p></div>}
+        {!loading && !error && filtered.length === 0 && <div className="empty"><p>Nenhuma fila encontrada.</p></div>}
 
-      <div className="side__list">
-        {loading && <div className="state"><div className="spinner" /><p>Consultando filas…</p></div>}
-        {error && !loading && <div className="state state--crit"><p>{error}</p></div>}
-        {!loading && !error && filtered.length === 0 && (
-          <div className="state"><p>Nenhuma fila encontrada.</p></div>
-        )}
         {!loading && filtered.map((qc) => (
-          <button
-            key={qc.id}
-            className={"qitem" + (qc.id === selectedId ? " active" : "")}
-            onClick={() => onSelect(qc.id)}
-            title={qc.name}
-          >
+          <button key={qc.id} className={"qitem" + (qc.id === selectedId ? " active" : "")} onClick={() => onSelect(qc.id)} title={qc.name}>
             <span className="qitem__dot" />
             <span className="qitem__name">{qc.name}</span>
             <span className="qitem__id">#{qc.id}</span>
@@ -67,10 +62,8 @@ export default function Sidebar({ queues, selectedId, onSelect, loading, error }
       </div>
 
       <div className="side__foot">
-        <div className="side__nav">
-          <Link href="/dashboard"><LayoutDashboard size={13} style={{ verticalAlign: "-2px" }} /> Painel</Link>
-          <Link href="/config"><Settings size={13} style={{ verticalAlign: "-2px" }} /> Config</Link>
-        </div>
+        <Link href="/dashboard"><LayoutGrid size={14} /> Painel</Link>
+        <Link href="/config"><Settings size={14} /> Ambiente</Link>
       </div>
     </aside>
   );

@@ -1,28 +1,34 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import type { QueueConfig, QueueLive } from "@/lib/types";
+import type { QueueConfig, QueueLive, HourPoint } from "@/lib/types";
 import { fmt, mmss, stateFor } from "@/lib/format";
+import HourlyChart from "@/components/charts/HourlyChart";
+import ServiceGauge from "@/components/charts/ServiceGauge";
 import AgentsDonut from "@/components/charts/AgentsDonut";
-import WaitingTrend, { TrendPoint } from "@/components/charts/WaitingTrend";
 import ExportButton from "@/components/ExportButton";
-import { AlertTriangle, Clock, PhoneCall, Users, Database } from "lucide-react";
+import {
+  PhoneIncoming, PhoneCall, PhoneMissed, Target, Clock, Timer,
+  Users, Activity, AlertTriangle, BarChart3, Database,
+} from "lucide-react";
 
 const POLL_MS = 5000;
-const MAX_POINTS = 24;
 
 export default function QueueDashboard({ queueId }: { queueId: string }) {
   const [config, setConfig] = useState<QueueConfig | null>(null);
   const [cfgError, setCfgError] = useState<string | null>(null);
   const [live, setLive] = useState<QueueLive | null>(null);
-  const [trend, setTrend] = useState<TrendPoint[]>([]);
+  const [hourly, setHourly] = useState<HourPoint[]>([]);
+  const [now, setNow] = useState(new Date());
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  useEffect(() => { const t = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(t); }, []);
+
   useEffect(() => {
-    setConfig(null); setCfgError(null); setLive(null); setTrend([]);
-    fetch(`/api/queues/${queueId}`)
-      .then((r) => r.json())
+    setConfig(null); setCfgError(null); setLive(null); setHourly([]);
+    fetch(`/api/queues/${queueId}`).then((r) => r.json())
       .then((j) => (j.ok ? setConfig(j.queue) : setCfgError(j.error || "Falha ao carregar a fila")))
       .catch((e) => setCfgError(String(e)));
+    fetch(`/api/queues/${queueId}/hourly`).then((r) => r.json()).then((j) => setHourly(j.hourly || [])).catch(() => {});
   }, [queueId]);
 
   useEffect(() => {
@@ -32,141 +38,172 @@ export default function QueueDashboard({ queueId }: { queueId: string }) {
         const nameQ = config?.name ? `?name=${encodeURIComponent(config.name)}` : "";
         const r = await fetch(`/api/queues/${queueId}/realtime${nameQ}`, { cache: "no-store" });
         const j: QueueLive = await r.json();
-        if (!alive) return;
-        setLive(j);
-        if (j.instant?.available) {
-          setTrend((prev) => {
-            const p: TrendPoint = {
-              t: new Date(j.ts).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
-              waiting: j.instant.callsWaiting ?? 0,
-              talking: j.instant.agentsTalking ?? 0,
-            };
-            return [...prev, p].slice(-MAX_POINTS);
-          });
-        }
-      } catch { /* mantém estado */ }
+        if (alive) setLive(j);
+      } catch { /* mantém */ }
     }
     poll();
     timer.current = setInterval(poll, POLL_MS);
     return () => { alive = false; if (timer.current) clearInterval(timer.current); };
   }, [queueId, config?.name]);
 
-  if (cfgError) {
-    return (
-      <div className="card"><div className="state state--crit">
-        <AlertTriangle size={30} /><h3>Não foi possível carregar a fila #{queueId}</h3><p>{cfgError}</p>
-      </div></div>
-    );
-  }
-  if (!config) {
-    return <div className="card"><div className="state"><div className="spinner" /><p>Carregando fila…</p></div></div>;
-  }
+  if (cfgError) return (
+    <div className="panel"><div className="empty"><div className="ico"><AlertTriangle color="var(--crit)" /></div>
+      <h4>Não foi possível carregar a fila #{queueId}</h4><p>{cfgError}</p></div></div>
+  );
+  if (!config) return <div className="panel"><div className="empty"><div className="spinner" /><p>Carregando fila…</p></div></div>;
 
-  const kpis = live?.kpis ?? null;
+  const k = live?.kpis ?? null;
   const inst = live?.instant ?? null;
-  const hasAgents = inst?.agentsLogged != null;   // agentes ao vivo (banco)
-  const hasQueue = inst?.callsWaiting != null;     // fila em espera (Finesse/snapshot)
-  const ansPct = kpis && kpis.received ? Math.round((kpis.answered / kpis.received) * 100) : null;
-  const abaPct = kpis && kpis.received ? Math.round((kpis.abandoned / kpis.received) * 100) : null;
+  const hasAgents = inst?.agentsLogged != null;
+  const hasQueue = inst?.callsWaiting != null;
+  const target = config.serviceLevelPct;
+
+  const ansPct = k && k.received ? Math.round((k.answered / k.received) * 100) : null;
+  const abaPct = k && k.received ? Math.round((k.abandoned / k.received) * 100) : null;
+  const slState = k ? (k.slPct >= target ? "ok" : k.slPct >= target - 15 ? "warn" : "crit") : undefined;
+
+  // Saúde da operação (assinatura)
+  const health = (() => {
+    if (!k) return { s: "warn", label: "Sem dados" };
+    const bad = (abaPct ?? 0) > 10 || k.slPct < target - 15 || (hasQueue && (inst?.callsWaiting ?? 0) > 5);
+    const mid = (abaPct ?? 0) > 5 || k.slPct < target || (hasQueue && (inst?.callsWaiting ?? 0) > 2);
+    return bad ? { s: "crit", label: "Crítico" } : mid ? { s: "warn", label: "Atenção" } : { s: "ok", label: "Operação saudável" };
+  })();
 
   return (
     <div>
-      <div className="content__head">
-        <div className="content__title">
-          <h2>{config.name}</h2>
-          <p>Fila #{config.id} · {config.queueType || "VOICE"} · meta {config.serviceLevelPct}% em {config.serviceLevelSec}s</p>
+      <div className="topbar">
+        <div className="topbar__title">
+          <h2>{config.name}
+            {live?.source === "informix" && <span className="chip chip--live" style={{ fontSize: ".62rem" }}><Database size={11} style={{ verticalAlign: "-1px" }} /> db_cra</span>}
+          </h2>
+          <div className="topbar__meta">
+            <span>Fila <b>#{config.id}</b></span>
+            <span>{config.queueType || "VOICE"} · {config.algorithm || "FIFO"}</span>
+            <span>Meta <b>{target}%</b> em <b>{config.serviceLevelSec}s</b></span>
+          </div>
         </div>
-        <div className="content__actions">
-          {live?.source === "informix"
-            ? <span className="conn conn--ok"><Database size={13} /> BANCO db_cra</span>
-            : <span className="conn conn--wait"><span className="conn__dot" /> {live?.source === "finesse" ? "FINESSE" : "SEM FONTE"}</span>}
+        <div className="topbar__right">
+          <div className="health" data-s={health.s}>
+            <span className="health__ring"><span /></span>
+            {health.label}
+          </div>
+          <div className="clock">
+            <div className="t">{now.toLocaleTimeString("pt-BR")}</div>
+            <div className="d">{now.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "short" })}</div>
+          </div>
           <ExportButton queueId={config.id} />
         </div>
       </div>
 
-      {/* KPIs do dia (histórico real) */}
+      {/* KPI instruments */}
       <div className="kpis">
-        <Kpi label="Recebidas (dia)" value={fmt(kpis?.received)} />
-        <Kpi label="Atendidas" value={fmt(kpis?.answered)} sub={ansPct != null ? `${ansPct}% do total` : undefined} state="ok" />
-        <Kpi label="Abandonadas" value={fmt(kpis?.abandoned)} sub={abaPct != null ? `${abaPct}% do total` : undefined} state={stateFor(abaPct ?? undefined, 5, 10)} />
-        <Kpi label="Nível de Serviço" value={kpis ? `${kpis.slPct}%` : "—"} sub={`meta ${config.serviceLevelPct}%`} state={kpis ? (kpis.slPct >= config.serviceLevelPct ? "ok" : kpis.slPct >= config.serviceLevelPct - 15 ? "warn" : "crit") : undefined} />
-        <Kpi label="T. Médio Espera" value={mmss(kpis?.avgWaitSec)} state={stateFor(kpis?.avgWaitSec, 20, 45)} />
-        <Kpi label="T. Médio Atend." value={mmss(kpis?.avgHandleSec ?? undefined)} />
+        <Kpi ico={<PhoneIncoming size={15} />} label="Recebidas" value={fmt(k?.received)} foot="no dia" />
+        <Kpi ico={<PhoneCall size={15} />} label="Atendidas" value={fmt(k?.answered)} foot={ansPct != null ? `${ansPct}% do total` : ""} s="ok" />
+        <Kpi ico={<PhoneMissed size={15} />} label="Abandonadas" value={fmt(k?.abandoned)} foot={abaPct != null ? `${abaPct}% do total` : ""} s={stateFor(abaPct ?? undefined, 5, 10)} />
+        <Kpi ico={<Target size={15} />} label="Nível de Serviço" value={k ? `${k.slPct}%` : "—"} foot={`meta ${target}%`} s={slState} />
+        <Kpi ico={<Clock size={15} />} label="T. Médio Espera" value={mmss(k?.avgWaitSec)} foot="TME" s={stateFor(k?.avgWaitSec, 20, 45)} />
+        <Kpi ico={<Timer size={15} />} label="T. Médio Atend." value={mmss(k?.avgHandleSec ?? undefined)} foot="TMA" />
       </div>
 
-      {/* Painéis instantâneos */}
-      <div className="panels">
-        <div className="card">
-          <div className="card__title"><PhoneCall size={13} style={{ verticalAlign: "-2px" }} /> Fila Agora</div>
-          {hasQueue ? (
-            <div className="qbig">
-              <div className="qbig__box" data-state={stateFor(inst?.callsWaiting, 2, 5)}>
-                <div className="qbig__num">{fmt(inst?.callsWaiting)}</div><div className="qbig__cap">em espera</div>
-              </div>
-              <div className="qbig__box" data-state={stateFor(inst?.longestWaitSec, 60, 120)}>
-                <div className="qbig__num">{mmss(inst?.longestWaitSec)}</div><div className="qbig__cap">maior espera</div>
-              </div>
-            </div>
-          ) : <NoInstant reason="Fila em espera 'agora' precisa do Finesse (supervisor) ou do Real-Time Snapshot. Os agentes ao lado e os KPIs do dia são reais." />}
+      <div className="grid">
+        {/* Hourly hero */}
+        <div className="panel panel--wide">
+          <div className="panel__hd">
+            <h3><BarChart3 size={14} /> Volume por hora — hoje</h3>
+            <div className="legend"><i className="rec">Recebidas</i><i className="ans">Atendidas</i><i className="aba">Abandonadas</i></div>
+          </div>
+          {hourly.length > 0 ? <HourlyChart data={hourly} />
+            : <div className="empty"><div className="ico"><BarChart3 /></div><p>Sem chamadas registradas hoje ainda.</p></div>}
         </div>
 
-        <div className="card">
-          <div className="card__title"><Users size={13} style={{ verticalAlign: "-2px" }} /> Agentes (agora)</div>
+        {/* Service level gauge */}
+        <div className="panel">
+          <div className="panel__hd"><h3><Target size={14} /> Nível de Serviço</h3></div>
+          <ServiceGauge value={k ? k.slPct : null} target={target} />
+        </div>
+
+        {/* Agents */}
+        <div className="panel">
+          <div className="panel__hd">
+            <h3><Users size={14} /> Agentes agora</h3>
+            <span className={"chip " + (hasAgents ? "chip--live" : "chip--wait")}>{hasAgents ? "ao vivo" : "—"}</span>
+          </div>
           {hasAgents ? (
-            <div className="center-flex">
+            <div>
               <AgentsDonut available={inst?.agentsReady ?? 0} talking={inst?.agentsTalking ?? 0} notReady={inst?.agentsNotReady ?? 0} />
-              <div className="aglegend">
-                <div className="agrow" style={{ borderLeftColor: "#22c55e" }}><div className="agrow__n">{fmt(inst?.agentsReady)}</div><div className="agrow__l">Disponíveis</div></div>
-                <div className="agrow" style={{ borderLeftColor: "#38bdf8" }}><div className="agrow__n">{fmt(inst?.agentsTalking)}</div><div className="agrow__l">Atendimento</div></div>
-                <div className="agrow" style={{ borderLeftColor: "#f59e0b" }}><div className="agrow__n">{fmt(inst?.agentsNotReady)}</div><div className="agrow__l">Em Pausa</div></div>
-                <div className="agrow" style={{ borderLeftColor: "#5c6b82" }}><div className="agrow__n">{fmt(inst?.agentsLogged)}</div><div className="agrow__l">Logados</div></div>
+              <div className="agset" style={{ marginTop: 16 }}>
+                <AgRow c="#34d399" label="Disponíveis" v={inst?.agentsReady ?? 0} tot={inst?.agentsLogged ?? 0} />
+                <AgRow c="#56b6ff" label="Atendimento" v={inst?.agentsTalking ?? 0} tot={inst?.agentsLogged ?? 0} />
+                <AgRow c="#fbbf24" label="Em pausa" v={inst?.agentsNotReady ?? 0} tot={inst?.agentsLogged ?? 0} />
               </div>
             </div>
-          ) : <NoInstant reason={inst?.reason} />}
+          ) : <div className="empty"><div className="ico"><Users /></div><p>{inst?.reason || "Sem dado de agentes."}</p></div>}
         </div>
 
-        <div className="card">
-          <div className="card__title"><Clock size={13} style={{ verticalAlign: "-2px" }} /> Configuração</div>
-          <table className="ctable"><tbody>
-            <tr><td>Nível de Serviço (meta)</td><td>{config.serviceLevelPct}% em {config.serviceLevelSec}s</td></tr>
-            <tr><td>Tipo</td><td>{config.queueType || "VOICE"}</td></tr>
-            <tr><td>Algoritmo</td><td>{config.algorithm || "—"}</td></tr>
-            <tr><td>KPIs do dia</td><td><span className={"badge " + (kpis ? "badge--ok" : "badge--warn")}>{kpis ? "Reais (banco)" : "Indisponível"}</span></td></tr>
-            <tr><td>Agentes ao vivo</td><td><span className={"badge " + (hasAgents ? "badge--ok" : "badge--warn")}>{hasAgents ? "Ativo (banco)" : "Indisponível"}</span></td></tr>
-            <tr><td>Fila em espera</td><td><span className={"badge " + (hasQueue ? "badge--ok" : "badge--warn")}>{hasQueue ? "Ativa" : "Via Finesse/snapshot"}</span></td></tr>
-          </tbody></table>
+        {/* Fila agora */}
+        <div className="panel">
+          <div className="panel__hd">
+            <h3><Activity size={14} /> Fila agora</h3>
+            <span className={"chip " + (hasQueue ? "chip--live" : "chip--wait")}>{hasQueue ? "ao vivo" : "via Finesse"}</span>
+          </div>
+          {hasQueue ? (
+            <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, alignItems: "center" }}>
+              <Stat big value={fmt(inst?.callsWaiting)} label="em espera" s={stateFor(inst?.callsWaiting, 2, 5)} />
+              <Stat big value={mmss(inst?.longestWaitSec)} label="maior espera" s={stateFor(inst?.longestWaitSec, 60, 120)} />
+            </div>
+          ) : (
+            <div className="empty"><div className="ico"><Activity /></div>
+              <h4>Aguardando fonte de fila</h4>
+              <p>A fila em espera “agora” depende do Finesse (supervisor) ou do Real-Time Snapshot. Os agentes e KPIs do dia já são reais.</p>
+            </div>
+          )}
         </div>
-      </div>
 
-      {/* Tendência ao vivo (instantâneo) */}
-      <div className="card card--full">
-        <div className="card__title">Tempo Real — Agentes em Atendimento × Chamadas em Espera</div>
-        {trend.length > 1 ? <WaitingTrend data={trend} />
-          : (hasAgents || hasQueue) ? <div className="state"><div className="spinner" /><p>Coletando pontos ao vivo…</p></div>
-          : <NoInstant reason={inst?.reason} />}
+        {/* Config */}
+        <div className="panel">
+          <div className="panel__hd"><h3><Database size={14} /> Configuração & fontes</h3></div>
+          <div className="deflist">
+            <div><dt>Meta de serviço</dt><dd>{target}% em {config.serviceLevelSec}s</dd></div>
+            <div><dt>Algoritmo</dt><dd>{config.algorithm || "FIFO"}</dd></div>
+            <div><dt>KPIs do dia</dt><dd><span className={"badge " + (k ? "badge--ok" : "badge--wait")}>{k ? "reais" : "—"}</span></dd></div>
+            <div><dt>Agentes ao vivo</dt><dd><span className={"badge " + (hasAgents ? "badge--ok" : "badge--wait")}>{hasAgents ? "ativo" : "—"}</span></dd></div>
+            <div><dt>Fila em espera</dt><dd><span className={"badge " + (hasQueue ? "badge--ok" : "badge--wait")}>{hasQueue ? "ativa" : "Finesse"}</span></dd></div>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
-function Kpi({ label, value, sub, state }: { label: string; value: string; sub?: string; state?: string }) {
+function Kpi({ ico, label, value, foot, s }: { ico: React.ReactNode; label: string; value: string; foot?: string; s?: string }) {
   const dim = value === "—";
   return (
-    <div className="kpi" data-state={dim ? undefined : state || undefined}>
-      <div className="kpi__label">{label}</div>
-      <div className={"kpi__value" + (dim ? " dim" : "")}>{value}</div>
-      {sub && <div className="kpi__foot">{sub}</div>}
+    <div className="kpi" data-s={dim ? undefined : s || undefined}>
+      <div className="kpi__top"><span className="kpi__label">{label}</span><span className="kpi__ico">{ico}</span></div>
+      <div className={"kpi__val num" + (dim ? " dim" : "")}>{value}</div>
+      {foot ? <div className="kpi__foot">{foot}</div> : <div className="kpi__foot">&nbsp;</div>}
     </div>
   );
 }
 
-function NoInstant({ reason }: { reason?: string }) {
+function AgRow({ c, label, v, tot }: { c: string; label: string; v: number; tot: number }) {
+  const pct = tot > 0 ? Math.round((v / tot) * 100) : 0;
   return (
-    <div className="state state--warn">
-      <AlertTriangle size={24} />
-      <h3>Instantâneo indisponível</h3>
-      <p>{reason || "Aguardando fonte de tempo real."}</p>
-      <p style={{ color: "var(--txt-mute)" }}>Os KPIs do dia acima são reais. O “agora mesmo” acende quando o Real-Time Snapshot for habilitado no UCCX.</p>
+    <div className="agrow2">
+      <span className="lbl">{label}</span>
+      <span className="track"><span className="fill" style={{ width: `${pct}%`, background: c }} /></span>
+      <span className="val num">{v}</span>
+    </div>
+  );
+}
+
+function Stat({ value, label, s, big }: { value: string; label: string; s?: string; big?: boolean }) {
+  const col = s === "crit" ? "var(--crit)" : s === "warn" ? "var(--warn)" : s === "ok" ? "var(--ok)" : "var(--text)";
+  return (
+    <div style={{ textAlign: "center", background: "var(--ink)", border: "1px solid var(--line)", borderRadius: "var(--r)", padding: "22px 12px" }}>
+      <div className="num" style={{ fontSize: big ? "2.4rem" : "1.6rem", fontWeight: 600, color: col, lineHeight: 1 }}>{value}</div>
+      <div style={{ marginTop: 8, fontSize: ".72rem", color: "var(--text-mute)", textTransform: "uppercase", letterSpacing: ".1em" }}>{label}</div>
     </div>
   );
 }

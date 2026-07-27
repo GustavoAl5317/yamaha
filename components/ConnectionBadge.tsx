@@ -1,18 +1,17 @@
 "use client";
-import { Wifi, WifiOff, Loader2 } from "lucide-react";
 
-export interface Conn { ok: boolean; status: number; message: string; }
+export interface Conn {
+  ok: boolean;
+  message: string;
+  source?: string;
+}
 
+// Badge compacto opcional (o status principal fica na sidebar).
 export default function ConnectionBadge({ conn }: { conn: Conn | null }) {
-  if (!conn) return (
-    <span className="conn conn--wait"><Loader2 size={13} className="spin" /> VERIFICANDO</span>
-  );
-  if (conn.ok) return (
-    <span className="conn conn--ok"><span className="conn__dot" /> <Wifi size={13} /> UCCX CONECTADO</span>
-  );
+  if (!conn) return null;
   return (
-    <span className="conn conn--bad" title={conn.message}>
-      <span className="conn__dot" /> <WifiOff size={13} /> SEM CONEXÃO ({conn.status || "—"})
+    <span className="chip" style={{ color: conn.ok ? "var(--ok)" : "var(--crit)", borderColor: conn.ok ? "#1e5c43" : "#7a2233" }}>
+      {conn.ok ? "● conectado" : "● sem fonte"}
     </span>
   );
 }
