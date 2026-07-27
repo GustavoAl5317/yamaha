@@ -194,7 +194,50 @@ async function kpisToday(conn: any, csqId: number): Promise<QueueKpis | null> {
   };
 }
 
-/** Retorna KPIs do dia + instantâneo para uma fila. */
+/**
+ * Estado ATUAL dos agentes de uma fila, ao vivo, direto do banco.
+ * Cadeia: contactservicequeue → skillgroup → resourceskillmapping → resource
+ *         → agentstatedetailsnapshot (último evento por agente = estado atual).
+ * eventtype: 1=Login 2=NotReady 3=Ready 4=Reserved 5=Talking 6=Work 7=Logout.
+ */
+async function agentsLive(
+  conn: any,
+  csqId: number,
+): Promise<{ logged: number; ready: number; talking: number; notReady: number } | null> {
+  try {
+    const rows = await query(
+      conn,
+      `SELECT snap.eventtype et, COUNT(DISTINCT snap.agentid) qtd
+         FROM agentstatedetailsnapshot snap
+        WHERE snap.eventdatetime = (
+                SELECT MAX(s2.eventdatetime) FROM agentstatedetailsnapshot s2
+                 WHERE s2.agentid = snap.agentid)
+          AND snap.agentid IN (
+                SELECT r.resourceid
+                  FROM resource r, resourceskillmapping rsm, skillgroup sg, contactservicequeue csq
+                 WHERE r.resourceskillmapid = rsm.resourceskillmapid AND rsm.active = 't'
+                   AND rsm.skillid = sg.skillid AND sg.active = 't'
+                   AND sg.skillgroupid = csq.skillgroupid AND csq.active = 't'
+                   AND csq.contactservicequeueid = ${csqId} AND r.active = 't')
+        GROUP BY snap.eventtype`,
+    );
+    if (!rows) return null;
+    const m: Record<number, number> = {};
+    for (const r of rows) m[Number(r.et)] = Number(r.qtd);
+    const g = (k: number) => m[k] || 0;
+    return {
+      logged: g(1) + g(2) + g(3) + g(4) + g(5) + g(6), // tudo menos Logout(7)
+      ready: g(3),
+      talking: g(4) + g(5),   // Reserved + Talking
+      notReady: g(2) + g(6),  // NotReady + Work(wrapup)
+    };
+  } catch (e: any) {
+    console.error("[informix] agentsLive:", e?.message);
+    return null;
+  }
+}
+
+/** Retorna KPIs do dia + instantâneo (agentes do banco + fila do RtCSQsSummary). */
 export async function getLive(csqId: string, csqName: string): Promise<QueueLive> {
   const ibmdb = loadDriver();
   const none: QueueLive = { source: "none", ts: Date.now(), kpis: null, instant: emptyInstant("Driver Informix indisponível neste ambiente.") };
@@ -207,10 +250,23 @@ export async function getLive(csqId: string, csqName: string): Promise<QueueLive
     return { source: "none", ts: Date.now(), kpis: null, instant: emptyInstant(`Sem conexão ao banco: ${String(e?.message || e).split("\n")[0]}`) };
   }
   try {
-    const [kpis, instant] = await Promise.all([
+    const [kpis, snap, agents] = await Promise.all([
       kpisToday(conn, Number(csqId)),
       instantSnapshot(conn, csqName),
+      agentsLive(conn, Number(csqId)),
     ]);
+    // Agentes vêm do banco (ao vivo). Fila em espera vem do RtCSQsSummary (null se snapshot desligado).
+    const instant: QueueRealtime = {
+      available: agents != null || snap.available,
+      reason: agents != null ? undefined : snap.reason,
+      callsWaiting: snap.callsWaiting,
+      longestWaitSec: snap.longestWaitSec,
+      agentsLogged: agents ? agents.logged : snap.agentsLogged,
+      agentsReady: agents ? agents.ready : snap.agentsReady,
+      agentsTalking: agents ? agents.talking : snap.agentsTalking,
+      agentsNotReady: agents ? agents.notReady : snap.agentsNotReady,
+      ts: Date.now(),
+    };
     return { source: "informix", ts: Date.now(), kpis, instant };
   } finally {
     try { conn?.closeSync(); } catch { /* noop */ }

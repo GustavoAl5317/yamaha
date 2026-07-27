@@ -64,7 +64,8 @@ export default function QueueDashboard({ queueId }: { queueId: string }) {
 
   const kpis = live?.kpis ?? null;
   const inst = live?.instant ?? null;
-  const instLive = inst?.available === true;
+  const hasAgents = inst?.agentsLogged != null;   // agentes ao vivo (banco)
+  const hasQueue = inst?.callsWaiting != null;     // fila em espera (Finesse/snapshot)
   const ansPct = kpis && kpis.received ? Math.round((kpis.answered / kpis.received) * 100) : null;
   const abaPct = kpis && kpis.received ? Math.round((kpis.abandoned / kpis.received) * 100) : null;
 
@@ -97,7 +98,7 @@ export default function QueueDashboard({ queueId }: { queueId: string }) {
       <div className="panels">
         <div className="card">
           <div className="card__title"><PhoneCall size={13} style={{ verticalAlign: "-2px" }} /> Fila Agora</div>
-          {instLive ? (
+          {hasQueue ? (
             <div className="qbig">
               <div className="qbig__box" data-state={stateFor(inst?.callsWaiting, 2, 5)}>
                 <div className="qbig__num">{fmt(inst?.callsWaiting)}</div><div className="qbig__cap">em espera</div>
@@ -106,12 +107,12 @@ export default function QueueDashboard({ queueId }: { queueId: string }) {
                 <div className="qbig__num">{mmss(inst?.longestWaitSec)}</div><div className="qbig__cap">maior espera</div>
               </div>
             </div>
-          ) : <NoInstant reason={inst?.reason} />}
+          ) : <NoInstant reason="Fila em espera 'agora' precisa do Finesse (supervisor) ou do Real-Time Snapshot. Os agentes ao lado e os KPIs do dia são reais." />}
         </div>
 
         <div className="card">
           <div className="card__title"><Users size={13} style={{ verticalAlign: "-2px" }} /> Agentes (agora)</div>
-          {instLive ? (
+          {hasAgents ? (
             <div className="center-flex">
               <AgentsDonut available={inst?.agentsReady ?? 0} talking={inst?.agentsTalking ?? 0} notReady={inst?.agentsNotReady ?? 0} />
               <div className="aglegend">
@@ -131,16 +132,17 @@ export default function QueueDashboard({ queueId }: { queueId: string }) {
             <tr><td>Tipo</td><td>{config.queueType || "VOICE"}</td></tr>
             <tr><td>Algoritmo</td><td>{config.algorithm || "—"}</td></tr>
             <tr><td>KPIs do dia</td><td><span className={"badge " + (kpis ? "badge--ok" : "badge--warn")}>{kpis ? "Reais (banco)" : "Indisponível"}</span></td></tr>
-            <tr><td>Instantâneo</td><td><span className={"badge " + (instLive ? "badge--ok" : "badge--warn")}>{instLive ? "Ativo" : "Aguardando snapshot"}</span></td></tr>
+            <tr><td>Agentes ao vivo</td><td><span className={"badge " + (hasAgents ? "badge--ok" : "badge--warn")}>{hasAgents ? "Ativo (banco)" : "Indisponível"}</span></td></tr>
+            <tr><td>Fila em espera</td><td><span className={"badge " + (hasQueue ? "badge--ok" : "badge--warn")}>{hasQueue ? "Ativa" : "Via Finesse/snapshot"}</span></td></tr>
           </tbody></table>
         </div>
       </div>
 
       {/* Tendência ao vivo (instantâneo) */}
       <div className="card card--full">
-        <div className="card__title">Tempo Real — Chamadas em Espera × Agentes em Atendimento</div>
+        <div className="card__title">Tempo Real — Agentes em Atendimento × Chamadas em Espera</div>
         {trend.length > 1 ? <WaitingTrend data={trend} />
-          : instLive ? <div className="state"><div className="spinner" /><p>Coletando pontos ao vivo…</p></div>
+          : (hasAgents || hasQueue) ? <div className="state"><div className="spinner" /><p>Coletando pontos ao vivo…</p></div>
           : <NoInstant reason={inst?.reason} />}
       </div>
     </div>
