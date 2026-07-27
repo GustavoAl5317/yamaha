@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getQueue, getQueueRealtime } from "@/lib/uccx";
+import { listQueues, getLive, informixConfigured } from "@/lib/informix";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,41 +10,46 @@ export async function GET(req: Request) {
   const id = searchParams.get("queueId");
   const format = (searchParams.get("format") || "csv").toLowerCase();
   if (!id) return NextResponse.json({ error: "queueId obrigatório" }, { status: 400 });
+  if (!informixConfigured()) return NextResponse.json({ error: "Fonte de dados não configurada" }, { status: 503 });
 
-  const [cfg, rt] = await Promise.all([getQueue(id), getQueueRealtime(id)]);
+  const queues = await listQueues();
+  const cfg = queues.find((q) => q.id === String(id));
   if (!cfg) return NextResponse.json({ error: "Fila não encontrada" }, { status: 404 });
 
+  const live = await getLive(cfg.id, cfg.name);
+  const k = live.kpis;
+  const i = live.instant;
   const generatedAt = new Date().toISOString();
-  const rows: [string, string | number][] = [
-    ["Relatório", "Fila UCCX — Yamaha Help Desk"],
-    ["Gerado em", generatedAt],
-    ["Fila (ID)", cfg.id],
-    ["Fila (nome)", cfg.name],
-    ["Tipo", cfg.queueType],
-    ["Algoritmo", cfg.algorithm],
-    ["Meta Nível de Serviço (s)", cfg.serviceLevelSec],
-    ["Meta Nível de Serviço (%)", cfg.serviceLevelPct],
-    ["Skill", cfg.skill ?? "-"],
-    ["Tempo real disponível", rt.available ? "Sim" : `Não (${rt.reason ?? ""})`],
-    ["Chamadas em espera", rt.callsWaiting ?? "-"],
-    ["Maior tempo de espera (s)", rt.longestWaitSec ?? "-"],
-    ["Agentes logados", rt.agentsLogged ?? "-"],
-    ["Agentes disponíveis", rt.agentsReady ?? "-"],
-    ["Agentes em atendimento", rt.agentsTalking ?? "-"],
-    ["Agentes em pausa", rt.agentsNotReady ?? "-"],
-  ];
 
   if (format === "json") {
-    return NextResponse.json({ generatedAt, config: cfg, realtime: rt });
+    return NextResponse.json({ generatedAt, queue: cfg, kpis: k, instant: i });
   }
 
+  const rows: [string, string | number][] = [
+    ["Relatório", "Fila UCCX — Yamaha"],
+    ["Gerado em", generatedAt],
+    ["Fila", `${cfg.name} (#${cfg.id})`],
+    ["Meta Nível de Serviço", `${cfg.serviceLevelPct}% em ${cfg.serviceLevelSec}s`],
+    ["— KPIs do dia —", ""],
+    ["Recebidas", k?.received ?? "-"],
+    ["Atendidas", k?.answered ?? "-"],
+    ["Abandonadas", k?.abandoned ?? "-"],
+    ["Nível de Serviço (%)", k?.slPct ?? "-"],
+    ["Tempo médio de espera (s)", k?.avgWaitSec ?? "-"],
+    ["Tempo médio de atendimento (s)", k?.avgHandleSec ?? "-"],
+    ["— Instantâneo —", i.available ? "" : `indisponível (${i.reason ?? ""})`],
+    ["Chamadas em espera", i.callsWaiting ?? "-"],
+    ["Maior tempo de espera (s)", i.longestWaitSec ?? "-"],
+    ["Agentes logados", i.agentsLogged ?? "-"],
+    ["Agentes disponíveis", i.agentsReady ?? "-"],
+    ["Agentes em atendimento", i.agentsTalking ?? "-"],
+  ];
   const esc = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
-  const csv = rows.map(([k, v]) => `${esc(k)},${esc(v)}`).join("\r\n");
-  const fname = `relatorio_${cfg.name}_${generatedAt.slice(0, 10)}.csv`;
+  const csv = rows.map(([a, b]) => `${esc(a)},${esc(b)}`).join("\r\n");
   return new NextResponse("﻿" + csv, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="${fname}"`,
+      "Content-Disposition": `attachment; filename="relatorio_${cfg.name}_${generatedAt.slice(0, 10)}.csv"`,
     },
   });
 }

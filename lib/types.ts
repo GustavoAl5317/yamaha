@@ -34,3 +34,21 @@ export interface ConnStatus {
   host: string;
   message: string;
 }
+
+// KPIs acumulados do dia (fonte: contactqueuedetail/contactcalldetail — reais)
+export interface QueueKpis {
+  received: number;    // contatos que entraram na fila
+  answered: number;    // atendidas (disposition=2)
+  abandoned: number;   // abandonadas (disposition=1)
+  slPct: number;       // % dentro do nível de serviço
+  avgWaitSec: number;  // TME
+  avgHandleSec: number | null; // TMA
+}
+
+// Resposta unificada de "tempo real" do painel
+export interface QueueLive {
+  source: "informix" | "finesse" | "none";
+  ts: number;
+  kpis: QueueKpis | null;      // histórico do dia (disponível agora)
+  instant: QueueRealtime;      // snapshot instantâneo (RtCSQsSummary)
+}

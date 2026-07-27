@@ -1,10 +1,13 @@
-import type { QueueRealtime } from "./types";
+import type { QueueConfig, QueueRealtime, QueueKpis, QueueLive } from "./types";
 
 /**
- * Conexão com o banco Informix db_cra do UCCX (fonte real de tempo real).
- * O driver `informixdb` é nativo e só carrega onde foi compilado (ex.: intc01/Linux).
- * Por isso o require é preguiçoso e tolerante: se não carregar, retorna null e o
- * caller cai no fallback (Finesse).
+ * Fonte de dados real: banco Informix db_cra do UCCX.
+ * - Lista de filas: contactservicequeue (substitui o adminapi).
+ * - KPIs do dia: contactqueuedetail + contactcalldetail (dado histórico, disponível agora).
+ * - Instantâneo: RtCSQsSummary (só preenche quando o "Real-Time Snapshot" está ligado no UCCX).
+ *
+ * O driver `informixdb` é nativo (roda no intc01/Linux). require preguiçoso: se não carregar,
+ * as funções retornam vazio/indisponível e o caller cai no fallback.
  */
 
 const E = process.env;
@@ -29,7 +32,7 @@ function loadDriver(): any | null {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     return require("informixdb");
   } catch {
-    return null; // driver nativo indisponível neste ambiente
+    return null;
   }
 }
 
@@ -37,7 +40,6 @@ function open(ibmdb: any): Promise<any> {
   return new Promise((resolve, reject) => {
     ibmdb.open(connString(false), { connectTimeout: 12 }, (err: any, conn: any) => {
       if (!err) return resolve(conn);
-      // tenta subscriber
       ibmdb.open(connString(true), { connectTimeout: 12 }, (err2: any, conn2: any) =>
         err2 ? reject(err2) : resolve(conn2));
     });
@@ -50,79 +52,165 @@ function query(conn: any, sql: string): Promise<any[]> {
   });
 }
 
-// ---- Mapeamento defensivo de colunas (nomes variam por versão do UCCX) ----
-function pick(row: Record<string, any>, aliases: string[]): number | null {
+const num = (v: any): number => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+};
+
+/** Lista de filas ativas direto do banco (não depende do adminapi). */
+export async function listQueues(): Promise<QueueConfig[]> {
+  const ibmdb = loadDriver();
+  if (!ibmdb) return [];
+  let conn: any;
+  try {
+    conn = await open(ibmdb);
+  } catch {
+    return [];
+  }
+  try {
+    const rows = await query(
+      conn,
+      `SELECT contactservicequeueid id, csqname name, servicelevel sl,
+              servicelevelpercentage pct, queuealgorithm alg, queuetypename qtype
+         FROM contactservicequeue WHERE active = 't' ORDER BY csqname`,
+    );
+    return rows.map((r) => ({
+      id: String(r.id),
+      name: String(r.name),
+      queueType: String(r.qtype ?? ""),
+      algorithm: String(r.alg ?? ""),
+      serviceLevelSec: num(r.sl),
+      serviceLevelPct: num(r.pct),
+      skill: null,
+    }));
+  } catch {
+    return [];
+  } finally {
+    try { conn?.closeSync(); } catch { /* noop */ }
+  }
+}
+
+// ---- Instantâneo (RtCSQsSummary) — mapeamento por aliases ----
+function pick(row: Record<string, any>, keys: string[]): number | null {
   const low: Record<string, any> = {};
   for (const k of Object.keys(row)) low[k.toLowerCase()] = row[k];
-  for (const a of aliases) {
-    if (a in low) {
-      const v = Number(low[a]);
-      if (!Number.isNaN(v)) return v;
+  for (const k of keys) {
+    if (k in low && low[k] != null) {
+      const v = Number(low[k]);
+      if (Number.isFinite(v)) return v;
     }
   }
   return null;
 }
-function pickStr(row: Record<string, any>, aliases: string[]): string | null {
+function pickStr(row: Record<string, any>, keys: string[]): string | null {
   const low: Record<string, any> = {};
   for (const k of Object.keys(row)) low[k.toLowerCase()] = row[k];
-  for (const a of aliases) if (a in low && low[a] != null) return String(low[a]).trim();
+  for (const k of keys) if (k in low && low[k] != null) return String(low[k]).trim();
   return null;
 }
 
-const A = {
-  name: ["csqname", "csqid", "name"],
-  waiting: ["callswaiting", "contactswaiting", "contactsqueued", "queuedcontacts", "contactswaitinginqueue"],
-  longest: ["oldestcontact", "oldestcontactinqueue", "longestcontactinqueue", "longestcallinqueue", "oldestinqueue"],
-  logged: ["agentsloggedin", "loggedinagents", "agentslogged", "totalagents"],
-  ready: ["availableagents", "agentsavailable", "readyagents", "agentsready"],
-  talking: ["talkingagents", "agentstalking"],
-  notready: ["notreadyagents", "agentsnotready", "unavailableagents"],
-};
+const emptyInstant = (reason: string): QueueRealtime => ({
+  available: false, reason,
+  callsWaiting: null, longestWaitSec: null,
+  agentsLogged: null, agentsReady: null, agentsTalking: null, agentsNotReady: null,
+  ts: Date.now(),
+});
 
-/**
- * Lê o snapshot em tempo real de uma fila a partir da RtCSQsSummary.
- * Retorna null se o driver não carregar; QueueRealtime com available=false
- * se a tabela existir porém sem a fila / sem dados.
- */
-export async function getSnapshotByName(csqName: string): Promise<QueueRealtime | null> {
+/** Snapshot instantâneo da fila (RtCSQsSummary). available=false se a tabela estiver vazia. */
+async function instantSnapshot(conn: any, csqName: string): Promise<QueueRealtime> {
+  let rows: any[];
+  try {
+    rows = await query(conn, "SELECT * FROM RtCSQsSummary");
+  } catch (e: any) {
+    return emptyInstant(`Erro na RtCSQsSummary: ${String(e?.message || e).split("\n")[0]}`);
+  }
+  if (!rows || rows.length === 0) {
+    return emptyInstant("Snapshot em tempo real desligado no UCCX (RtCSQsSummary vazia).");
+  }
+  const target = csqName.toLowerCase();
+  const row = rows.find((r) => (pickStr(r, ["csqname"]) || "").toLowerCase() === target);
+  if (!row) return emptyInstant(`Fila '${csqName}' não está na RtCSQsSummary.`);
+  return {
+    available: true,
+    callsWaiting: pick(row, ["callswaiting"]),
+    longestWaitSec: pick(row, ["oldestcontact", "longestwaitduration"]),
+    agentsLogged: pick(row, ["loggedinagents"]),
+    agentsReady: pick(row, ["availableagents"]),
+    agentsTalking: pick(row, ["talkingagents"]),
+    agentsNotReady: pick(row, ["unavailableagents"]),
+    ts: Date.now(),
+  };
+}
+
+/** KPIs acumulados do dia para uma fila (contactqueuedetail + contactcalldetail). */
+async function kpisToday(conn: any, csqId: number): Promise<QueueKpis | null> {
+  const base =
+    `FROM contactqueuedetail cqd, contactservicequeue csq
+      WHERE cqd.targetid = csq.recordid AND cqd.targettype = 0
+        AND csq.contactservicequeueid = ${csqId}
+        AND cqd.startdatetime >= TODAY`;
+  let q1: any[];
+  try {
+    q1 = await query(
+      conn,
+      `SELECT
+         COUNT(*) received,
+         SUM(CASE WHEN cqd.disposition = 2 THEN 1 ELSE 0 END) answered,
+         SUM(CASE WHEN cqd.disposition = 1 THEN 1 ELSE 0 END) abandoned,
+         SUM(CASE WHEN cqd.metservicelevel THEN 1 ELSE 0 END) metsl,
+         AVG(cqd.queuetime) avgwait
+       ${base}`,
+    );
+  } catch {
+    return null;
+  }
+  const r = q1?.[0] || {};
+  const received = num(r.received);
+
+  // TMA — tempo médio de conversa das atendidas (contactcalldetail.connecttime)
+  let avgHandleSec: number | null = null;
+  try {
+    const q2 = await query(
+      conn,
+      `SELECT AVG(ccd.connecttime) avgtalk
+         FROM contactcalldetail ccd, contactqueuedetail cqd, contactservicequeue csq
+        WHERE ccd.sessionid = cqd.sessionid AND ccd.sessionseqnum = cqd.sessionseqnum
+          AND cqd.targetid = csq.recordid AND cqd.targettype = 0
+          AND csq.contactservicequeueid = ${csqId}
+          AND cqd.disposition = 2 AND cqd.startdatetime >= TODAY`,
+    );
+    const v = q2?.[0]?.avgtalk;
+    if (v != null) avgHandleSec = Math.round(Number(v));
+  } catch { /* opcional */ }
+
+  return {
+    received,
+    answered: num(r.answered),
+    abandoned: num(r.abandoned),
+    slPct: received > 0 ? Math.round((num(r.metsl) / received) * 100) : 0,
+    avgWaitSec: Math.round(num(r.avgwait)),
+    avgHandleSec,
+  };
+}
+
+/** Retorna KPIs do dia + instantâneo para uma fila. */
+export async function getLive(csqId: string, csqName: string): Promise<QueueLive> {
   const ibmdb = loadDriver();
-  if (!ibmdb) return null;
+  const none: QueueLive = { source: "none", ts: Date.now(), kpis: null, instant: emptyInstant("Driver Informix indisponível neste ambiente.") };
+  if (!ibmdb) return none;
 
   let conn: any;
-  const empty = (reason: string): QueueRealtime => ({
-    available: false, reason,
-    callsWaiting: null, longestWaitSec: null,
-    agentsLogged: null, agentsReady: null, agentsTalking: null, agentsNotReady: null,
-    ts: Date.now(),
-  });
-
   try {
     conn = await open(ibmdb);
   } catch (e: any) {
-    return empty(`Sem conexão ao Informix: ${String(e?.message || e).split("\n")[0]}`);
+    return { source: "none", ts: Date.now(), kpis: null, instant: emptyInstant(`Sem conexão ao banco: ${String(e?.message || e).split("\n")[0]}`) };
   }
-
   try {
-    const rows: any[] = await query(conn, "SELECT * FROM RtCSQsSummary");
-    if (!rows || rows.length === 0) {
-      return empty("RtCSQsSummary vazia — habilitar 'Real-Time Snapshot Writing' no UCCX.");
-    }
-    const target = String(csqName).toLowerCase();
-    const row = rows.find((r) => (pickStr(r, A.name) || "").toLowerCase() === target) || null;
-    if (!row) return empty(`Fila '${csqName}' não encontrada na RtCSQsSummary.`);
-
-    return {
-      available: true,
-      callsWaiting: pick(row, A.waiting),
-      longestWaitSec: pick(row, A.longest),
-      agentsLogged: pick(row, A.logged),
-      agentsReady: pick(row, A.ready),
-      agentsTalking: pick(row, A.talking),
-      agentsNotReady: pick(row, A.notready),
-      ts: Date.now(),
-    };
-  } catch (e: any) {
-    return empty(`Erro ao consultar RtCSQsSummary: ${String(e?.message || e).split("\n")[0]}`);
+    const [kpis, instant] = await Promise.all([
+      kpisToday(conn, Number(csqId)),
+      instantSnapshot(conn, csqName),
+    ]);
+    return { source: "informix", ts: Date.now(), kpis, instant };
   } finally {
     try { conn?.closeSync(); } catch { /* noop */ }
   }
