@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import type { QueueConfig, QueueLive, HourPoint } from "@/lib/types";
+import type { QueueConfig, QueueLive, HourPoint, AgentConfig } from "@/lib/types";
 import { fmt, mmss, stateFor } from "@/lib/format";
 import HourlyChart from "@/components/charts/HourlyChart";
 import ServiceGauge from "@/components/charts/ServiceGauge";
@@ -21,7 +21,9 @@ export default function DashboardPage() {
   const [hourly, setHourly] = useState<HourPoint[]>([]);
   const [now, setNow] = useState(new Date());
   const [queueId, setQueueId] = useState<string | null>(null);
+  const [agents, setAgents] = useState<AgentConfig[]>([]);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const agentTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(t); }, []);
 
@@ -61,6 +63,21 @@ export default function DashboardPage() {
     timer.current = setInterval(poll, POLL_MS);
     return () => { alive = false; if (timer.current) clearInterval(timer.current); };
   }, [queueId, config?.name]);
+
+  // Poll agents (Finesse Team API)
+  useEffect(() => {
+    let alive = true;
+    async function pollAgents() {
+      try {
+        const r = await fetch("/api/agents", { cache: "no-store" });
+        const j = await r.json();
+        if (alive && j.ok) setAgents(j.agents);
+      } catch { /* mantém */ }
+    }
+    pollAgents();
+    agentTimer.current = setInterval(pollAgents, POLL_MS);
+    return () => { alive = false; if (agentTimer.current) clearInterval(agentTimer.current); };
+  }, []);
 
   if (cfgError) return (
     <div className="dash-full">
@@ -162,22 +179,25 @@ export default function DashboardPage() {
           ) : <div className="empty"><div className="ico"><Users /></div><p>{inst?.reason || "Sem dado de agentes."}</p></div>}
         </div>
 
-        {/* Fila agora */}
-        <div className="panel">
+        {/* Atendentes — Finesse Team API */}
+        <div className="panel panel--full">
           <div className="panel__hd">
-            <h3><Activity size={14} /> Fila agora</h3>
-            <span className={"chip " + (hasQueue ? "chip--live" : "chip--wait")}>{hasQueue ? "ao vivo" : "via Finesse"}</span>
+            <h3><Users size={14} /> Atendentes — Help Desk</h3>
+            <span className={"chip " + (agents.length > 0 ? "chip--live" : "chip--wait")}>
+              {agents.length > 0 ? `${agents.filter(a => a.state !== "Offline").length} online` : "carregando…"}
+            </span>
           </div>
-          {hasQueue ? (
-            <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, alignItems: "center" }}>
-              <Stat big value={fmt(inst?.callsWaiting)} label="em espera" s={stateFor(inst?.callsWaiting, 2, 5)} />
-              <Stat big value={mmss(inst?.longestWaitSec)} label="maior espera" s={stateFor(inst?.longestWaitSec, 60, 120)} />
+          {agents.length > 0 ? (
+            <div className="agents-grid">
+              {agents
+                .sort((a, b) => {
+                  const order: Record<string, number> = { "Em Atendimento": 0, "Disponível": 1, "Em Trabalho": 2, "Indisponível": 3, "Conectando": 4, "Offline": 5 };
+                  return (order[a.state ?? ""] ?? 9) - (order[b.state ?? ""] ?? 9);
+                })
+                .map((ag) => <AgentCard key={ag.id} agent={ag} />)}
             </div>
           ) : (
-            <div className="empty"><div className="ico"><Activity /></div>
-              <h4>Aguardando fonte de fila</h4>
-              <p>A fila em espera "agora" depende do Finesse (supervisor) ou do Real-Time Snapshot.</p>
-            </div>
+            <div className="empty"><div className="ico"><Users /></div><p>Buscando atendentes do Finesse…</p></div>
           )}
         </div>
       </div>
@@ -207,12 +227,27 @@ function AgRow({ c, label, v, tot }: { c: string; label: string; v: number; tot:
   );
 }
 
-function Stat({ value, label, s, big }: { value: string; label: string; s?: string; big?: boolean }) {
-  const col = s === "crit" ? "var(--crit)" : s === "warn" ? "var(--warn)" : s === "ok" ? "var(--ok)" : "var(--text)";
+function AgentCard({ agent }: { agent: AgentConfig }) {
+  const stateColor: Record<string, string> = {
+    "Disponível": "var(--ok)",
+    "Em Atendimento": "var(--info)",
+    "Em Trabalho": "var(--violet)",
+    "Indisponível": "var(--warn)",
+    "Offline": "var(--text-mute)",
+    "Conectando": "var(--info)",
+  };
+  const color = stateColor[agent.state ?? ""] ?? "var(--text-mute)";
+  const isOffline = agent.state === "Offline";
+  const name = `${agent.firstName} ${agent.lastName}`.trim();
+
   return (
-    <div style={{ textAlign: "center", background: "var(--ink)", border: "1px solid var(--line)", borderRadius: "var(--r)", padding: "22px 12px" }}>
-      <div className="num" style={{ fontSize: big ? "2.4rem" : "1.6rem", fontWeight: 600, color: col, lineHeight: 1 }}>{value}</div>
-      <div style={{ marginTop: 8, fontSize: ".72rem", color: "var(--text-mute)", textTransform: "uppercase", letterSpacing: ".1em" }}>{label}</div>
+    <div className={"agent-card" + (isOffline ? " agent-card--off" : "")} >
+      <div className="agent-card__dot" style={{ background: color, boxShadow: isOffline ? "none" : `0 0 8px ${color}` }} />
+      <div className="agent-card__info">
+        <span className="agent-card__name">{name}</span>
+        {agent.extension && <span className="agent-card__ext">ramal {agent.extension}</span>}
+      </div>
+      <span className="agent-card__state" style={{ color }}>{agent.state ?? "—"}</span>
     </div>
   );
 }

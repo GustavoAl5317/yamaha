@@ -197,6 +197,17 @@ button { font-family: inherit; cursor: pointer; color: inherit; }
 .recharts-cartesian-axis-tick text { fill: var(--text-mute); font-size: 11px; }
 .recharts-tooltip-wrapper { outline: none; }
 
+/* ============ Agents list ============ */
+.agents-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
+.agent-card { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: var(--r-sm); border: 1px solid var(--line-soft); background: var(--ink); transition: background .15s, border-color .15s; }
+.agent-card:hover { background: var(--surface); border-color: var(--line); }
+.agent-card--off { opacity: .45; }
+.agent-card__dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; transition: background .3s; }
+.agent-card__info { flex: 1; min-width: 0; }
+.agent-card__name { display: block; font-size: .86rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.agent-card__ext { display: block; font-size: .7rem; color: var(--text-mute); margin-top: 1px; }
+.agent-card__state { font-size: .74rem; font-weight: 600; white-space: nowrap; letter-spacing: .02em; }
+
 @media (max-width: 1240px) {
   .kpis { grid-template-columns: repeat(3, 1fr); }
   .grid { grid-template-columns: 1fr 1fr; }
