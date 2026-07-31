@@ -45,7 +45,15 @@ export default function DashboardPage() {
   // Carregar hourly
   useEffect(() => {
     if (!queueId) return;
-    fetch(`/api/queues/${queueId}/hourly`).then((r) => r.json()).then((j) => setHourly(j.hourly || [])).catch(() => {});
+    let alive = true;
+    function fetchHourly() {
+      fetch(`/api/queues/${queueId}/hourly`).then((r) => r.json()).then((j) => {
+        if (alive) setHourly(j.hourly || []);
+      }).catch(() => {});
+    }
+    fetchHourly();
+    const t = setInterval(fetchHourly, 60000); // Atualiza o gráfico a cada 1 minuto
+    return () => { alive = false; clearInterval(t); };
   }, [queueId]);
 
   // Poll realtime
