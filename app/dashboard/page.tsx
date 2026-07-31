@@ -135,7 +135,6 @@ export default function DashboardPage() {
             <div className="t">{now.toLocaleTimeString("pt-BR")}</div>
             <div className="d">{now.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "short" })}</div>
           </div>
-          <ExportButton queueId={config.id} />
         </div>
       </div>
 
