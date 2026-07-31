@@ -166,26 +166,8 @@ export default function DashboardPage() {
           <ServiceGauge value={k ? k.slPct : null} target={target} />
         </div>
 
-        {/* Agents */}
-        <div className="panel">
-          <div className="panel__hd">
-            <h3><Users size={14} /> Agentes agora</h3>
-            <span className={"chip " + (hasAgents ? "chip--live" : "chip--wait")}>{hasAgents ? "ao vivo" : "—"}</span>
-          </div>
-          {hasAgents ? (
-            <div>
-              <AgentsDonut available={inst?.agentsReady ?? 0} talking={inst?.agentsTalking ?? 0} notReady={inst?.agentsNotReady ?? 0} />
-              <div className="agset" style={{ marginTop: 16 }}>
-                <AgRow c="#34d399" label="Disponíveis" v={inst?.agentsReady ?? 0} tot={inst?.agentsLogged ?? 0} />
-                <AgRow c="#56b6ff" label="Atendimento" v={inst?.agentsTalking ?? 0} tot={inst?.agentsLogged ?? 0} />
-                <AgRow c="#fbbf24" label="Em pausa" v={inst?.agentsNotReady ?? 0} tot={inst?.agentsLogged ?? 0} />
-              </div>
-            </div>
-          ) : <div className="empty"><div className="ico"><Users /></div><p>{inst?.reason || "Sem dado de agentes."}</p></div>}
-        </div>
-
         {/* Atendentes — Finesse Team API */}
-        <div className="panel panel--full">
+        <div className="panel panel--wide">
           <div className="panel__hd">
             <h3><Users size={14} /> Atendentes — Help Desk</h3>
             <span className={"chip " + (agents.length > 0 ? "chip--live" : "chip--wait")}>
@@ -208,6 +190,24 @@ export default function DashboardPage() {
                 : <p>Buscando atendentes do Finesse…</p>}
             </div>
           )}
+        </div>
+
+        {/* Agents (Donut) */}
+        <div className="panel">
+          <div className="panel__hd">
+            <h3><Users size={14} /> Agentes agora</h3>
+            <span className={"chip " + (hasAgents ? "chip--live" : "chip--wait")}>{hasAgents ? "ao vivo" : "—"}</span>
+          </div>
+          {hasAgents ? (
+            <div>
+              <AgentsDonut available={inst?.agentsReady ?? 0} talking={inst?.agentsTalking ?? 0} notReady={inst?.agentsNotReady ?? 0} />
+              <div className="agset" style={{ marginTop: 16 }}>
+                <AgRow c="#34d399" label="Disponíveis" v={inst?.agentsReady ?? 0} tot={inst?.agentsLogged ?? 0} />
+                <AgRow c="#56b6ff" label="Atendimento" v={inst?.agentsTalking ?? 0} tot={inst?.agentsLogged ?? 0} />
+                <AgRow c="#fbbf24" label="Em pausa" v={inst?.agentsNotReady ?? 0} tot={inst?.agentsLogged ?? 0} />
+              </div>
+            </div>
+          ) : <div className="empty"><div className="ico"><Users /></div><p>{inst?.reason || "Sem dado de agentes."}</p></div>}
         </div>
       </div>
     </div>
