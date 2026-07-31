@@ -94,7 +94,9 @@ button { font-family: inherit; cursor: pointer; color: inherit; }
 .side__foot a:hover { color: var(--text); border-color: #35507e; background: var(--surface); }
 
 /* ============ Content ============ */
+.dash-full { padding: 22px 32px 40px; min-height: 100vh; animation: fade .4s ease; }
 .content { padding: 22px 28px 40px; min-width: 0; animation: fade .4s ease; }
+.topbar__logo { width: 32px; height: 32px; border-radius: 8px; background: linear-gradient(145deg, var(--racing), var(--racing-deep)); display: inline-grid; place-items: center; box-shadow: 0 4px 12px -4px var(--racing-deep); }
 @keyframes fade { from { opacity: 0; transform: translateY(6px); } }
 
 .topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 22px; flex-wrap: wrap; }

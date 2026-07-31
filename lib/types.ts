@@ -26,6 +26,7 @@ export interface AgentConfig {
   lastName: string;
   extension: string | null;
   team: string | null;
+  state: string | null;
 }
 
 export interface ConnStatus {

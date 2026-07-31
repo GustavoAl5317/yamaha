@@ -3,7 +3,12 @@ import { ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, Respon
 import type { HourPoint } from "@/lib/types";
 
 export default function HourlyChart({ data }: { data: HourPoint[] }) {
-  const rows = data.map((d) => ({ ...d, label: `${d.hour}h` }));
+  // Ajusta UTC → GMT-3 (Brasília)
+  const rows = data.map((d) => {
+    let h = (parseInt(d.hour, 10) - 3);
+    if (h < 0) h += 24;
+    return { ...d, label: `${h}h` };
+  });
   return (
     <div className="chart">
       <ResponsiveContainer>

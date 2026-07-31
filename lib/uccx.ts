@@ -9,6 +9,7 @@ const ADMIN_USER = process.env.UCCX_ADMIN_USER || "";
 const ADMIN_PASS = process.env.UCCX_ADMIN_PASS || "";
 const SUP_USER = process.env.UCCX_SUP_USER || "";
 const SUP_PASS = process.env.UCCX_SUP_PASS || "";
+const FINESSE_TEAM_ID = process.env.FINESSE_TEAM_ID || "17";
 
 const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@_" });
 
@@ -150,17 +151,28 @@ export async function getQueueRealtime(id: string): Promise<QueueRealtime> {
   };
 }
 
-/** Lista de agentes/usuários configurados. */
-export async function getAgents(): Promise<AgentConfig[]> {
-  const r = await httpGet(ADMIN_PORT, "/adminapi/resource", ADMIN_USER, ADMIN_PASS);
-  if (r.status !== 200) throw new UccxError(r.status, "adminapi/resource");
+/**
+ * Lista de agentes do time via Finesse.
+ * Endpoint indicado pela equipe: GET /finesse/api/Team/{team_id}
+ * (T maiúsculo obrigatório).
+ */
+export async function getAgents(teamId?: string): Promise<AgentConfig[]> {
+  const tid = teamId || FINESSE_TEAM_ID;
+  const useSup = Boolean(SUP_USER && SUP_PASS);
+  const user = useSup ? SUP_USER : ADMIN_USER;
+  const pass = useSup ? SUP_PASS : ADMIN_PASS;
+
+  const r = await httpGet(FINESSE_PORT, `/finesse/api/Team/${encodeURIComponent(tid)}`, user, pass);
+  if (r.status !== 200) throw new UccxError(r.status, `finesse/api/Team/${tid}`);
+
   const j = parser.parse(r.body);
-  return asArray<any>(j?.resources?.resource).map((a) => ({
-    id: String(a.userID ?? a.id ?? ""),
+  return asArray<any>(j?.Team?.users?.User).map((a) => ({
+    id: String(a.loginId ?? ""),
     firstName: String(a.firstName ?? ""),
     lastName: String(a.lastName ?? ""),
     extension: a.extension ? String(a.extension) : null,
-    team: a.team ? String(a.team) : null,
+    team: a.teamName ? String(a.teamName) : null,
+    state: translateState(a.state),
   }));
 }
 
@@ -171,6 +183,20 @@ export class UccxError extends Error {
     super(`UCCX ${resource} retornou HTTP ${status}`);
     this.status = status;
     this.resource = resource;
+  }
+}
+
+function translateState(state: string | undefined | null): string | null {
+  if (!state) return null;
+  switch (String(state).toUpperCase()) {
+    case "NOT_READY": return "Indisponível";
+    case "READY": return "Disponível";
+    case "TALKING": return "Em Atendimento";
+    case "WORK":
+    case "WORK_READY": return "Em Trabalho";
+    case "LOGOUT": return "Offline";
+    case "LOGIN": return "Conectando";
+    default: return String(state);
   }
 }
 
