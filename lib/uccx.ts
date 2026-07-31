@@ -169,14 +169,22 @@ export async function getAgents(teamId?: string): Promise<AgentConfig[]> {
   if (r.status !== 200) throw new UccxError(r.status, `finesse/api/Team/${tid}`);
 
   const j = parser.parse(r.body);
-  return asArray<any>(j?.Team?.users?.User).map((a) => ({
-    id: String(a.loginId ?? ""),
-    firstName: String(a.firstName ?? ""),
-    lastName: String(a.lastName ?? ""),
-    extension: a.extension ? String(a.extension) : null,
-    team: a.teamName ? String(a.teamName) : null,
-    state: translateState(a.state),
-  }));
+  return asArray<any>(j?.Team?.users?.User).map((a) => {
+    let reason = null;
+    if (a.reasonCode) {
+      reason = String(a.reasonCode.label || a.reasonCode.code || a.reasonCode || "");
+      if (reason === "[object Object]" || !reason) reason = null;
+    }
+    return {
+      id: String(a.loginId ?? ""),
+      firstName: String(a.firstName ?? ""),
+      lastName: String(a.lastName ?? ""),
+      extension: a.extension ? String(a.extension) : null,
+      team: a.teamName ? String(a.teamName) : null,
+      state: translateState(a.state),
+      reason,
+    };
+  });
 }
 
 export class UccxError extends Error {

@@ -249,6 +249,11 @@ function AgentCard({ agent }: { agent: AgentConfig }) {
   const isOffline = agent.state === "Offline";
   const name = `${agent.firstName} ${agent.lastName}`.trim();
 
+  let stateDisplay = agent.state ?? "—";
+  if (agent.state === "Indisponível" && agent.reason) {
+    stateDisplay = `Pausa: ${agent.reason}`;
+  }
+
   return (
     <div className={"agent-card" + (isOffline ? " agent-card--off" : "")} >
       <div className="agent-card__dot" style={{ background: color, boxShadow: isOffline ? "none" : `0 0 8px ${color}` }} />
@@ -256,7 +261,7 @@ function AgentCard({ agent }: { agent: AgentConfig }) {
         <span className="agent-card__name">{name}</span>
         {agent.extension && <span className="agent-card__ext">ramal {agent.extension}</span>}
       </div>
-      <span className="agent-card__state" style={{ color }}>{agent.state ?? "—"}</span>
+      <span className="agent-card__state" style={{ color }}>{stateDisplay}</span>
     </div>
   );
 }
