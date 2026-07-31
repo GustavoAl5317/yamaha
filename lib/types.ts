@@ -55,6 +55,14 @@ export interface HourPoint {
   abandoned: number;
 }
 
+// Volume por dia (para o gráfico mensal)
+export interface DayPoint {
+  day: string;        // "2023-10-05"
+  received: number;
+  answered: number;
+  abandoned: number;
+}
+
 // Resposta unificada de "tempo real" do painel
 export interface QueueLive {
   source: "informix" | "finesse" | "none";

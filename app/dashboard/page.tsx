@@ -1,11 +1,10 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import type { QueueConfig, QueueLive, HourPoint, AgentConfig } from "@/lib/types";
+import type { QueueConfig, QueueLive, HourPoint, AgentConfig, DayPoint } from "@/lib/types";
 import { fmt, mmss, stateFor } from "@/lib/format";
 import HourlyChart from "@/components/charts/HourlyChart";
-import ServiceGauge from "@/components/charts/ServiceGauge";
 import AgentsDonut from "@/components/charts/AgentsDonut";
-import ExportButton from "@/components/ExportButton";
+import SummaryBarChart from "@/components/charts/SummaryBarChart";
 import {
   PhoneIncoming, PhoneCall, PhoneMissed, Target, Clock, Timer,
   Users, Activity, AlertTriangle, BarChart3, Database,
@@ -19,6 +18,7 @@ export default function DashboardPage() {
   const [cfgError, setCfgError] = useState<string | null>(null);
   const [live, setLive] = useState<QueueLive | null>(null);
   const [hourly, setHourly] = useState<HourPoint[]>([]);
+  const [daily, setDaily] = useState<DayPoint[]>([]);
   const [now, setNow] = useState(new Date());
   const [queueId, setQueueId] = useState<string | null>(null);
   const [agents, setAgents] = useState<AgentConfig[]>([]);
@@ -53,6 +53,20 @@ export default function DashboardPage() {
     }
     fetchHourly();
     const t = setInterval(fetchHourly, 60000); // Atualiza o gráfico a cada 1 minuto
+    return () => { alive = false; clearInterval(t); };
+  }, [queueId]);
+
+  // Carregar daily
+  useEffect(() => {
+    if (!queueId) return;
+    let alive = true;
+    function fetchDaily() {
+      fetch(`/api/queues/${queueId}/daily`).then((r) => r.json()).then((j) => {
+        if (alive) setDaily(j.daily || []);
+      }).catch(() => {});
+    }
+    fetchDaily();
+    const t = setInterval(fetchDaily, 300000); // Atualiza a cada 5 min
     return () => { alive = false; clearInterval(t); };
   }, [queueId]);
 
@@ -119,6 +133,28 @@ export default function DashboardPage() {
     return bad ? { s: "crit", label: "Crítico" } : mid ? { s: "warn", label: "Atenção" } : { s: "ok", label: "Operação saudável" };
   })();
 
+  // Separação Mês Atual e Mês Anterior
+  const currentMonthNum = now.getMonth();
+  const prevMonthNum = currentMonthNum === 0 ? 11 : currentMonthNum - 1;
+  const currentYear = now.getFullYear();
+  const prevMonthYear = currentMonthNum === 0 ? currentYear - 1 : currentYear;
+
+  const mCurr = { received: 0, answered: 0, abandoned: 0 };
+  const mPrev = { received: 0, answered: 0, abandoned: 0 };
+
+  daily.forEach(d => {
+    const date = new Date(d.day + "T12:00:00");
+    if (date.getMonth() === currentMonthNum && date.getFullYear() === currentYear) {
+      mCurr.received += d.received;
+      mCurr.answered += d.answered;
+      mCurr.abandoned += d.abandoned;
+    } else if (date.getMonth() === prevMonthNum && date.getFullYear() === prevMonthYear) {
+      mPrev.received += d.received;
+      mPrev.answered += d.answered;
+      mPrev.abandoned += d.abandoned;
+    }
+  });
+
   return (
     <div className="dash-full">
       <div className="topbar">
@@ -126,19 +162,9 @@ export default function DashboardPage() {
           <h2>
             <img src="/yamaha-logo.png" alt="Yamaha" style={{ height: "46px", objectFit: "contain", marginRight: "16px", background: "white", padding: "4px 8px", borderRadius: "6px" }} />
             Help Desk
-            {live?.source === "informix" && <span className="chip chip--live" style={{ fontSize: ".62rem" }}><Database size={11} style={{ verticalAlign: "-1px" }} /> db_cra</span>}
           </h2>
-          <div className="topbar__meta">
-            <span>Fila <b>#{config.id}</b></span>
-            <span>{config.queueType || "VOICE"} · {config.algorithm || "FIFO"}</span>
-            <span>Meta <b>{target}%</b> em <b>{config.serviceLevelSec}s</b></span>
-          </div>
         </div>
         <div className="topbar__right">
-          <div className="health" data-s={health.s}>
-            <span className="health__ring"><span /></span>
-            {health.label}
-          </div>
           <div className="clock">
             <div className="t">{now.toLocaleTimeString("pt-BR")}</div>
             <div className="d">{now.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "short" })}</div>
@@ -151,7 +177,7 @@ export default function DashboardPage() {
         <Kpi ico={<PhoneIncoming size={15} />} label="Recebidas" value={fmt(k?.received)} foot="no dia" />
         <Kpi ico={<PhoneCall size={15} />} label="Atendidas" value={fmt(k?.answered)} foot={ansPct != null ? `${ansPct}% do total` : ""} s="ok" />
         <Kpi ico={<PhoneMissed size={15} />} label="Abandonadas" value={fmt(k?.abandoned)} foot={abaPct != null ? `${abaPct}% do total` : ""} s={stateFor(abaPct ?? undefined, 5, 10)} />
-        <Kpi ico={<Target size={15} />} label="Nível de Serviço" value={k ? `${k.slPct}%` : "—"} foot={`meta ${target}%`} s={slState} />
+        <Kpi ico={<Target size={15} />} label="Nível de Serviço" value={k ? `${k.slPct}%` : "—"} s={slState} />
         <Kpi ico={<Clock size={15} />} label="T. Médio Espera" value={mmss(k?.avgWaitSec)} foot="TME" s={stateFor(k?.avgWaitSec, 20, 45)} />
         <Kpi ico={<Timer size={15} />} label="T. Médio Atend." value={mmss(k?.avgHandleSec ?? undefined)} foot="TMA" />
       </div>
@@ -163,29 +189,27 @@ export default function DashboardPage() {
             <h3><BarChart3 size={14} /> Volume por hora — hoje</h3>
             <div className="legend"><i className="rec">Recebidas</i><i className="ans">Atendidas</i><i className="aba">Abandonadas</i></div>
           </div>
-          {hourly.length > 0 ? <HourlyChart data={hourly} />
+          {hourly.length > 0
+            ? <HourlyChart data={hourly} />
             : <div className="empty"><div className="ico"><BarChart3 /></div><p>Sem chamadas registradas hoje ainda.</p></div>}
         </div>
 
-        {/* Service level gauge */}
-        <div className="panel">
-          <div className="panel__hd"><h3><Target size={14} /> Nível de Serviço</h3></div>
-          <ServiceGauge value={k ? k.slPct : null} target={target} />
-        </div>
+        <SummaryBarChart title="Volume — Mês Atual" received={mCurr.received} answered={mCurr.answered} abandoned={mCurr.abandoned} />
+        <SummaryBarChart title="Volume — Mês Anterior" received={mPrev.received} answered={mPrev.answered} abandoned={mPrev.abandoned} />
 
         {/* Atendentes — Finesse Team API */}
-        <div className="panel panel--wide">
+        <div className="panel panel--xwide">
           <div className="panel__hd">
             <h3><Users size={14} /> Atendentes — Help Desk</h3>
             <span className={"chip " + (agents.length > 0 ? "chip--live" : "chip--wait")}>
-              {agents.length > 0 ? `${agents.filter(a => a.state !== "Offline").length} online` : "carregando…"}
+              {agents.length > 0 ? `${agents.filter(a => a.state !== "Desconectado").length} online` : "carregando…"}
             </span>
           </div>
           {agents.length > 0 ? (
             <div className="agents-grid">
               {agents
                 .sort((a, b) => {
-                  const order: Record<string, number> = { "Em Atendimento": 0, "Disponível": 1, "Em Trabalho": 2, "Indisponível": 3, "Conectando": 4, "Offline": 5 };
+                  const order: Record<string, number> = { "Em Atendimento": 0, "Disponível": 1, "Em Trabalho": 2, "Indisponível": 3, "Conectando": 4, "Desconectado": 5 };
                   return (order[a.state ?? ""] ?? 9) - (order[b.state ?? ""] ?? 9);
                 })
                 .map((ag) => <AgentCard key={ag.id} agent={ag} />)}
@@ -249,11 +273,11 @@ function AgentCard({ agent }: { agent: AgentConfig }) {
     "Em Atendimento": "var(--info)",
     "Em Trabalho": "var(--violet)",
     "Indisponível": "var(--warn)",
-    "Offline": "var(--text-mute)",
+    "Desconectado": "var(--text-mute)",
     "Conectando": "var(--info)",
   };
   const color = stateColor[agent.state ?? ""] ?? "var(--text-mute)";
-  const isOffline = agent.state === "Offline";
+  const isOffline = agent.state === "Desconectado";
   const name = `${agent.firstName} ${agent.lastName}`.trim();
 
   let stateDisplay = agent.state ?? "—";

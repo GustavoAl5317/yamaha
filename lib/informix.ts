@@ -329,3 +329,39 @@ export async function getHourly(csqId: string): Promise<HourPoint[]> {
     try { conn?.closeSync(); } catch { /* noop */ }
   }
 }
+
+export async function getDaily(csqId: string): Promise<import("./types").DayPoint[]> {
+  const ibmdb = loadDriver();
+  if (!ibmdb) return [];
+  let conn: any;
+  try {
+    conn = await open(ibmdb);
+  } catch {
+    return [];
+  }
+  try {
+    const rows = await query(
+      conn,
+      `SELECT TO_CHAR(cqd.startdatetime, '%Y-%m-%d') dia,
+              COUNT(*) received,
+              SUM(CASE WHEN cqd.disposition = 2 THEN 1 ELSE 0 END) answered,
+              SUM(CASE WHEN cqd.disposition = 1 THEN 1 ELSE 0 END) abandoned
+         FROM contactqueuedetail cqd, contactservicequeue csq
+        WHERE cqd.targetid = csq.recordid AND cqd.targettype = 0
+          AND csq.contactservicequeueid = ${Number(csqId)}
+          AND cqd.startdatetime >= TODAY - 60 UNITS DAY
+        GROUP BY 1 ORDER BY 1`,
+    );
+    return (rows || []).map((r) => ({
+      day: String(r.dia),
+      received: Number(r.received || 0),
+      answered: Number(r.answered || 0),
+      abandoned: Number(r.abandoned || 0),
+    }));
+  } catch (e: any) {
+    console.error("[informix] getDaily:", e?.message);
+    return [];
+  } finally {
+    try { conn?.closeSync(); } catch { /* noop */ }
+  }
+}

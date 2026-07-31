@@ -205,7 +205,7 @@ function translateState(state: string | undefined | null): string | null {
     case "TALKING": return "Em Atendimento";
     case "WORK":
     case "WORK_READY": return "Em Trabalho";
-    case "LOGOUT": return "Offline";
+    case "LOGOUT": return "Desconectado";
     case "LOGIN": return "Conectando";
     default: return String(state);
   }
