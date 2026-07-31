@@ -4,11 +4,30 @@ import type { HourPoint } from "@/lib/types";
 
 export default function HourlyChart({ data }: { data: HourPoint[] }) {
   // Ajusta UTC → GMT-3 (Brasília)
-  const rows = data.map((d) => {
+  let rows = data.map((d) => {
     let h = (parseInt(d.hour, 10) - 3);
     if (h < 0) h += 24;
-    return { ...d, label: `${h}h` };
+    return { ...d, hNum: h };
   });
+
+  rows.sort((a, b) => a.hNum - b.hNum);
+
+  if (rows.length > 0) {
+    const currentHour = new Date().getHours();
+    const firstHour = rows[0].hNum;
+    const lastHour = Math.max(rows[rows.length - 1].hNum, currentHour);
+    
+    const padded = [];
+    for (let h = firstHour; h <= lastHour; h++) {
+      const existing = rows.find(r => r.hNum === h);
+      if (existing) {
+        padded.push({ ...existing, label: `${h}h` });
+      } else {
+        padded.push({ hour: String(h), hNum: h, received: 0, answered: 0, abandoned: 0, label: `${h}h` });
+      }
+    }
+    rows = padded;
+  }
   return (
     <div className="chart">
       <ResponsiveContainer>
