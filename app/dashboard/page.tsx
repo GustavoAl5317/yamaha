@@ -116,7 +116,7 @@ export default function DashboardPage() {
       <div className="topbar">
         <div className="topbar__title">
           <h2>
-            <img src="/yamaha-logo.png" alt="Yamaha" style={{ height: "24px", objectFit: "contain", marginRight: "12px", background: "white", padding: "2px 6px", borderRadius: "4px" }} />
+            <img src="/yamaha-logo.png" alt="Yamaha" style={{ height: "46px", objectFit: "contain", marginRight: "16px", background: "white", padding: "4px 8px", borderRadius: "6px" }} />
             Help Desk
             {live?.source === "informix" && <span className="chip chip--live" style={{ fontSize: ".62rem" }}><Database size={11} style={{ verticalAlign: "-1px" }} /> db_cra</span>}
           </h2>
