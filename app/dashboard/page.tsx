@@ -22,6 +22,7 @@ export default function DashboardPage() {
   const [now, setNow] = useState(new Date());
   const [queueId, setQueueId] = useState<string | null>(null);
   const [agents, setAgents] = useState<AgentConfig[]>([]);
+  const [agentsError, setAgentsError] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const agentTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -71,8 +72,12 @@ export default function DashboardPage() {
       try {
         const r = await fetch("/api/agents", { cache: "no-store" });
         const j = await r.json();
-        if (alive && j.ok) setAgents(j.agents);
-      } catch { /* mantém */ }
+        if (!alive) return;
+        if (j.ok) { setAgents(j.agents); setAgentsError(null); }
+        else setAgentsError(j.error || `Erro HTTP ${j.status}`);
+      } catch (e: any) {
+        if (alive) setAgentsError(String(e?.message || e));
+      }
     }
     pollAgents();
     agentTimer.current = setInterval(pollAgents, POLL_MS);
@@ -197,7 +202,11 @@ export default function DashboardPage() {
                 .map((ag) => <AgentCard key={ag.id} agent={ag} />)}
             </div>
           ) : (
-            <div className="empty"><div className="ico"><Users /></div><p>Buscando atendentes do Finesse…</p></div>
+            <div className="empty"><div className="ico"><AlertTriangle color={agentsError ? "var(--crit)" : undefined} /></div>
+              {agentsError
+                ? <><h4>Falha ao buscar atendentes</h4><p style={{ color: "var(--crit)" }}>{agentsError}</p><p style={{ color: "var(--text-mute)", fontSize: ".76rem" }}>Verifique FINESSE_TEAM_ID, UCCX_SUP_USER e UCCX_SUP_PASS no .env.local do servidor.</p></>
+                : <p>Buscando atendentes do Finesse…</p>}
+            </div>
           )}
         </div>
       </div>
