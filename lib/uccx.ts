@@ -23,7 +23,10 @@ interface HttpResult {
 
 function httpGet(port: number, path: string, user: string, pass: string, timeoutMs = 12000): Promise<HttpResult> {
   return new Promise((resolve, reject) => {
-    const auth = "Basic " + Buffer.from(`${user}:${pass}`).toString("base64");
+    // Permite contornar bugs de parsing de senha passando o base64 direto pelo env
+    const overrideB64 = process.env.UCCX_AUTH_B64;
+    const auth = overrideB64 ? "Basic " + overrideB64 : "Basic " + Buffer.from(`${user}:${pass}`).toString("base64");
+    
     const req = https.request(
       { host: HOST, port, path, method: "GET", agent, headers: { Authorization: auth, Accept: "application/xml" } },
       (res) => {
