@@ -168,6 +168,17 @@ export async function getAgents(teamId?: string): Promise<AgentConfig[]> {
   const r = await httpGet(FINESSE_PORT, `/finesse/api/Team/${encodeURIComponent(tid)}`, user, pass);
   if (r.status !== 200) throw new UccxError(r.status, `finesse/api/Team/${tid}`);
 
+function translateReason(r: string | null): string | null {
+  if (!r) return null;
+  const lower = r.toLowerCase();
+  if (lower.includes("agent initiated")) return "Ação do agente";
+  if (lower.includes("connection failure")) return "Falha de conexão";
+  if (lower.includes("system initiated")) return "Ação do sistema";
+  if (lower.includes("end of shift")) return "Fim do turno";
+  if (lower.includes("device reset")) return "Dispositivo reiniciado";
+  return r;
+}
+
   const j = parser.parse(r.body);
   return asArray<any>(j?.Team?.users?.User).map((a) => {
     let reason = null;
@@ -182,7 +193,7 @@ export async function getAgents(teamId?: string): Promise<AgentConfig[]> {
       extension: a.extension ? String(a.extension) : null,
       team: a.teamName ? String(a.teamName) : null,
       state: translateState(a.state),
-      reason,
+      reason: translateReason(reason),
     };
   });
 }
