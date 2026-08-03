@@ -185,13 +185,25 @@ export default function DashboardPage() {
             </span>
           </div>
           {agents.length > 0 ? (
-            <div className="agents-grid">
-              {agents
-                .sort((a, b) => {
-                  const order: Record<string, number> = { "Em Atendimento": 0, "Disponível": 1, "Em Trabalho": 2, "Indisponível": 3, "Conectando": 4, "Desconectado": 5 };
-                  return (order[a.state ?? ""] ?? 9) - (order[b.state ?? ""] ?? 9);
-                })
-                .map((ag) => <AgentCard key={ag.id} agent={ag} />)}
+            <div className="agents-table-wrap" style={{ width: "100%", overflowX: "auto" }}>
+              <table className="agents-table" style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "0.9rem" }}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid var(--line)", color: "var(--text-dim)" }}>
+                    <th style={{ padding: "10px 8px", fontWeight: "600" }}>Nome</th>
+                    <th style={{ padding: "10px 8px", fontWeight: "600" }}>Ramal</th>
+                    <th style={{ padding: "10px 8px", fontWeight: "600" }}>Status</th>
+                    <th style={{ padding: "10px 8px", fontWeight: "600" }}>Motivo / Pausa</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {agents
+                    .sort((a, b) => {
+                      const order: Record<string, number> = { "Em Atendimento": 0, "Disponível": 1, "Em Trabalho": 2, "Indisponível": 3, "Conectando": 4, "Desconectado": 5 };
+                      return (order[a.state ?? ""] ?? 9) - (order[b.state ?? ""] ?? 9);
+                    })
+                    .map((ag) => <AgentTableRow key={ag.id} agent={ag} />)}
+                </tbody>
+              </table>
             </div>
           ) : (
             <div className="empty"><div className="ico"><AlertTriangle color={agentsError ? "var(--crit)" : undefined} /></div>
@@ -246,7 +258,7 @@ function AgRow({ c, label, v, tot }: { c: string; label: string; v: number; tot:
   );
 }
 
-function AgentCard({ agent }: { agent: AgentConfig }) {
+function AgentTableRow({ agent }: { agent: AgentConfig }) {
   const stateColor: Record<string, string> = {
     "Disponível": "var(--ok)",
     "Em Atendimento": "var(--info)",
@@ -259,19 +271,15 @@ function AgentCard({ agent }: { agent: AgentConfig }) {
   const isOffline = agent.state === "Desconectado";
   const name = `${agent.firstName} ${agent.lastName}`.trim();
 
-  let stateDisplay = agent.state ?? "—";
-  if (agent.state === "Indisponível" && agent.reason) {
-    stateDisplay = `Pausa: ${agent.reason}`;
-  }
-
   return (
-    <div className={"agent-card" + (isOffline ? " agent-card--off" : "")} >
-      <div className="agent-card__dot" style={{ background: color, boxShadow: isOffline ? "none" : `0 0 8px ${color}` }} />
-      <div className="agent-card__info">
-        <span className="agent-card__name">{name}</span>
-        {agent.extension && <span className="agent-card__ext">ramal {agent.extension}</span>}
-      </div>
-      <span className="agent-card__state" style={{ color }}>{stateDisplay}</span>
-    </div>
+    <tr style={{ borderBottom: "1px solid var(--line)", opacity: isOffline ? 0.5 : 1 }}>
+      <td style={{ padding: "10px 8px", fontWeight: "500", display: "flex", alignItems: "center", gap: "8px" }}>
+        <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: color, boxShadow: isOffline ? "none" : `0 0 8px ${color}` }} />
+        {name}
+      </td>
+      <td style={{ padding: "10px 8px", color: "var(--text-mute)" }}>{agent.extension ?? "—"}</td>
+      <td style={{ padding: "10px 8px", color, fontWeight: "500" }}>{agent.state ?? "—"}</td>
+      <td style={{ padding: "10px 8px", color: "var(--text-mute)" }}>{agent.reason ?? "—"}</td>
+    </tr>
   );
 }
