@@ -2,8 +2,8 @@ module.exports = {
   apps: [
     {
       name: 'yamaha-dash',
-      script: 'npm',
-      args: 'run start',
+      script: 'bash',
+      args: 'start.sh prod',
       instances: 1,
       autorestart: true,
       watch: false,
