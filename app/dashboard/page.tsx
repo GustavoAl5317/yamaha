@@ -4,7 +4,7 @@ import type { QueueConfig, QueueLive, HourPoint, AgentConfig, DayPoint } from "@
 import { fmt, mmss, stateFor } from "@/lib/format";
 import HourlyChart from "@/components/charts/HourlyChart";
 import AgentsDonut from "@/components/charts/AgentsDonut";
-import SummaryBarChart from "@/components/charts/SummaryBarChart";
+import DailyBarChart from "@/components/charts/DailyBarChart";
 import {
   PhoneIncoming, PhoneCall, PhoneMissed, Target, Clock, Timer,
   Users, Activity, AlertTriangle, BarChart3, Database,
@@ -133,27 +133,20 @@ export default function DashboardPage() {
     return bad ? { s: "crit", label: "Crítico" } : mid ? { s: "warn", label: "Atenção" } : { s: "ok", label: "Operação saudável" };
   })();
 
-  // Separação Mês Atual e Mês Anterior
+  // Detalhamento POR DIA — mês atual e mês anterior (cada dia = 3 barras)
   const currentMonthNum = now.getMonth();
   const prevMonthNum = currentMonthNum === 0 ? 11 : currentMonthNum - 1;
   const currentYear = now.getFullYear();
   const prevMonthYear = currentMonthNum === 0 ? currentYear - 1 : currentYear;
 
-  const mCurr = { received: 0, answered: 0, abandoned: 0 };
-  const mPrev = { received: 0, answered: 0, abandoned: 0 };
+  const dayBars = (monthNum: number, year: number) => daily
+    .filter((d) => { const dt = new Date(d.day + "T12:00:00"); return dt.getMonth() === monthNum && dt.getFullYear() === year; })
+    .sort((a, b) => a.day.localeCompare(b.day))
+    .map((d) => ({ label: String(Number(d.day.slice(8, 10))), received: d.received, answered: d.answered, abandoned: d.abandoned }));
 
-  daily.forEach(d => {
-    const date = new Date(d.day + "T12:00:00");
-    if (date.getMonth() === currentMonthNum && date.getFullYear() === currentYear) {
-      mCurr.received += d.received;
-      mCurr.answered += d.answered;
-      mCurr.abandoned += d.abandoned;
-    } else if (date.getMonth() === prevMonthNum && date.getFullYear() === prevMonthYear) {
-      mPrev.received += d.received;
-      mPrev.answered += d.answered;
-      mPrev.abandoned += d.abandoned;
-    }
-  });
+  const currMonthBars = dayBars(currentMonthNum, currentYear);
+  const prevMonthBars = dayBars(prevMonthNum, prevMonthYear);
+  const monthName = (m: number, y: number) => new Date(y, m, 1).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
 
   return (
     <div className="dash-full">
@@ -194,8 +187,25 @@ export default function DashboardPage() {
             : <div className="empty"><div className="ico"><BarChart3 /></div><p>Sem chamadas registradas hoje ainda.</p></div>}
         </div>
 
-        <SummaryBarChart title="Volume — Mês Atual" received={mCurr.received} answered={mCurr.answered} abandoned={mCurr.abandoned} />
-        <SummaryBarChart title="Volume — Mês Anterior" received={mPrev.received} answered={mPrev.answered} abandoned={mPrev.abandoned} />
+        <div className="panel panel--full">
+          <div className="panel__hd">
+            <h3><BarChart3 size={14} /> Volume diário — {monthName(currentMonthNum, currentYear)}</h3>
+            <div className="legend"><i className="rec">Recebidas</i><i className="ans">Atendidas</i><i className="aba">Abandonadas</i></div>
+          </div>
+          {currMonthBars.length > 0
+            ? <DailyBarChart data={currMonthBars} />
+            : <div className="empty"><div className="ico"><BarChart3 /></div><p>Sem dados no mês atual.</p></div>}
+        </div>
+
+        <div className="panel panel--full">
+          <div className="panel__hd">
+            <h3><BarChart3 size={14} /> Volume diário — {monthName(prevMonthNum, prevMonthYear)}</h3>
+            <div className="legend"><i className="rec">Recebidas</i><i className="ans">Atendidas</i><i className="aba">Abandonadas</i></div>
+          </div>
+          {prevMonthBars.length > 0
+            ? <DailyBarChart data={prevMonthBars} />
+            : <div className="empty"><div className="ico"><BarChart3 /></div><p>Sem dados no mês anterior.</p></div>}
+        </div>
 
         {/* Atendentes — Finesse Team API */}
         <div className="panel panel--xwide">
