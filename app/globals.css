@@ -94,7 +94,15 @@ button { font-family: inherit; cursor: pointer; color: inherit; }
 .side__foot a:hover { color: var(--text); border-color: #35507e; background: var(--surface); }
 
 /* ============ Content ============ */
-.dash-full { padding: 22px 32px 40px; min-height: 100vh; animation: fade .4s ease; }
+.dash-full { padding: 16px 26px 24px; min-height: 100vh; animation: fade .4s ease; }
+
+/* Cabeçalho NOC — logo + título centralizados e grandes para telão */
+.noc-head { position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 4px 0 18px; }
+.noc-logo { height: 72px; object-fit: contain; background: #fff; padding: 8px 18px; border-radius: 12px; box-shadow: 0 10px 28px -12px rgba(0,0,0,.7); }
+.noc-title { font-family: var(--font-display); font-size: 2.15rem; font-weight: 700; letter-spacing: -0.02em; text-align: center; line-height: 1.1; }
+.noc-clock { position: absolute; top: 2px; right: 2px; text-align: right; }
+.noc-clock .t { font-family: var(--font-display); font-size: 1.5rem; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1; }
+.noc-clock .d { font-size: .76rem; color: var(--text-dim); text-transform: capitalize; margin-top: 3px; }
 .content { padding: 22px 28px 40px; min-width: 0; animation: fade .4s ease; }
 .topbar__logo { width: 32px; height: 32px; border-radius: 8px; background: linear-gradient(145deg, var(--racing), var(--racing-deep)); display: inline-grid; place-items: center; box-shadow: 0 4px 12px -4px var(--racing-deep); }
 @keyframes fade { from { opacity: 0; transform: translateY(6px); } }
@@ -221,3 +229,23 @@ button { font-family: inherit; cursor: pointer; color: inherit; }
   .kpis { grid-template-columns: repeat(2, 1fr); }
 }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+/* ===== Compactação para caber em uma tela (NOC, sem rolagem) ===== */
+.kpis { margin-bottom: 12px; }
+.kpi { padding: 12px 14px 10px; }
+.kpi__val { font-size: 1.65rem; margin-top: 7px; }
+.kpi__foot { margin-top: 4px; }
+.grid { gap: 12px; }
+.panel { padding: 14px 16px; }
+.panel__hd { margin-bottom: 10px; }
+/* Bloco de atendentes e agentes mais baixos, com rolagem interna só se estourar */
+.agents-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; max-height: 232px; overflow-y: auto; padding-right: 4px; }
+.agents-grid::-webkit-scrollbar { width: 6px; }
+.agents-grid::-webkit-scrollbar-thumb { background: var(--line); border-radius: 6px; }
+.agent-card { padding: 7px 11px; gap: 10px; }
+.agent-card__name { font-size: .8rem; }
+.agent-card__ext { font-size: .66rem; }
+.agent-card__state { font-size: .7rem; }
+.agent-card__dot { width: 8px; height: 8px; }
+/* Painel "Agentes agora": donut menor */
+.panel .agset { gap: 9px; }

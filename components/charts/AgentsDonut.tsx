@@ -14,7 +14,7 @@ export default function AgentsDonut({ available, talking, notReady }: Props) {
         { name: "Em pausa", value: notReady },
       ];
   return (
-    <div style={{ position: "relative", width: 168, height: 168, flex: "0 0 auto", margin: "0 auto" }}>
+    <div style={{ position: "relative", width: 140, height: 140, flex: "0 0 auto", margin: "0 auto" }}>
       <ResponsiveContainer>
         <PieChart>
           <Pie data={data} dataKey="value" innerRadius={56} outerRadius={80} startAngle={90} endAngle={-270} stroke="none" paddingAngle={total ? 2 : 0}>

@@ -2,7 +2,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { QueueConfig, QueueLive, HourPoint, AgentConfig, DayPoint } from "@/lib/types";
 import { fmt, mmss, stateFor } from "@/lib/format";
-import HourlyChart from "@/components/charts/HourlyChart";
 import AgentsDonut from "@/components/charts/AgentsDonut";
 import DailyBarChart from "@/components/charts/DailyBarChart";
 import {
@@ -17,7 +16,6 @@ export default function DashboardPage() {
   const [config, setConfig] = useState<QueueConfig | null>(null);
   const [cfgError, setCfgError] = useState<string | null>(null);
   const [live, setLive] = useState<QueueLive | null>(null);
-  const [hourly, setHourly] = useState<HourPoint[]>([]);
   const [daily, setDaily] = useState<DayPoint[]>([]);
   const [now, setNow] = useState(new Date());
   const [queueId, setQueueId] = useState<string | null>(null);
@@ -41,20 +39,6 @@ export default function DashboardPage() {
       }
     }).catch((e) => setCfgError(String(e)));
   }, []);
-
-  // Carregar hourly
-  useEffect(() => {
-    if (!queueId) return;
-    let alive = true;
-    function fetchHourly() {
-      fetch(`/api/queues/${queueId}/hourly`).then((r) => r.json()).then((j) => {
-        if (alive) setHourly(j.hourly || []);
-      }).catch(() => {});
-    }
-    fetchHourly();
-    const t = setInterval(fetchHourly, 60000); // Atualiza o gráfico a cada 1 minuto
-    return () => { alive = false; clearInterval(t); };
-  }, [queueId]);
 
   // Carregar daily
   useEffect(() => {
@@ -150,20 +134,14 @@ export default function DashboardPage() {
 
   return (
     <div className="dash-full">
-      <div className="topbar">
-        <div className="topbar__title">
-          <h2>
-            <img src="/yamaha-logo.png" alt="Yamaha" style={{ height: "46px", objectFit: "contain", marginRight: "16px", background: "white", padding: "4px 8px", borderRadius: "6px" }} />
-            Help Desk
-          </h2>
+      <header className="noc-head">
+        <div className="noc-clock">
+          <div className="t">{now.toLocaleTimeString("pt-BR")}</div>
+          <div className="d">{now.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })}</div>
         </div>
-        <div className="topbar__right">
-          <div className="clock">
-            <div className="t">{now.toLocaleTimeString("pt-BR")}</div>
-            <div className="d">{now.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "short" })}</div>
-          </div>
-        </div>
-      </div>
+        <img src="/yamaha-logo.png" alt="Yamaha" className="noc-logo" />
+        <h1 className="noc-title">Central de Operações · Help Desk</h1>
+      </header>
 
       {/* KPI instruments */}
       <div className="kpis">
@@ -176,18 +154,7 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid">
-        {/* Hourly hero */}
         <div className="panel panel--wide">
-          <div className="panel__hd">
-            <h3><BarChart3 size={14} /> Volume por hora — hoje</h3>
-            <div className="legend"><i className="rec">Recebidas</i><i className="ans">Atendidas</i><i className="aba">Abandonadas</i></div>
-          </div>
-          {hourly.length > 0
-            ? <HourlyChart data={hourly} />
-            : <div className="empty"><div className="ico"><BarChart3 /></div><p>Sem chamadas registradas hoje ainda.</p></div>}
-        </div>
-
-        <div className="panel panel--full">
           <div className="panel__hd">
             <h3><BarChart3 size={14} /> Volume diário — {monthName(currentMonthNum, currentYear)}</h3>
             <div className="legend"><i className="rec">Recebidas</i><i className="ans">Atendidas</i><i className="aba">Abandonadas</i></div>
@@ -197,7 +164,7 @@ export default function DashboardPage() {
             : <div className="empty"><div className="ico"><BarChart3 /></div><p>Sem dados no mês atual.</p></div>}
         </div>
 
-        <div className="panel panel--full">
+        <div className="panel panel--wide">
           <div className="panel__hd">
             <h3><BarChart3 size={14} /> Volume diário — {monthName(prevMonthNum, prevMonthYear)}</h3>
             <div className="legend"><i className="rec">Recebidas</i><i className="ans">Atendidas</i><i className="aba">Abandonadas</i></div>

@@ -11,7 +11,7 @@ export interface DayBar {
 
 export default function DailyBarChart({ data }: { data: DayBar[] }) {
   return (
-    <div className="chart" style={{ height: 250 }}>
+    <div className="chart" style={{ height: 205 }}>
       <ResponsiveContainer>
         <BarChart data={data} margin={{ top: 10, right: 8, left: -14, bottom: 0 }} barCategoryGap="22%" barGap={2}>
           <CartesianGrid stroke="#232f47" strokeDasharray="3 3" vertical={false} />
