@@ -135,9 +135,9 @@ export default function DashboardPage() {
   return (
     <div className="dash-full">
       <header className="noc-head" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "24px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-          <img src="/yamaha-logo.png" alt="Yamaha" className="noc-logo" style={{ height: "46px", objectFit: "contain", background: "white", padding: "4px 8px", borderRadius: "6px" }} />
-          <h1 className="noc-title" style={{ fontSize: "1.5rem", fontWeight: "600", margin: 0 }}>Help Desk</h1>
+        <div style={{ display: "flex", alignItems: "center", gap: "24px" }}>
+          <img src="/yamaha-logo.png" alt="Yamaha" className="noc-logo" style={{ height: "70px", objectFit: "contain", background: "white", padding: "6px 12px", borderRadius: "8px" }} />
+          <h1 className="noc-title" style={{ fontSize: "2.4rem", fontWeight: "700", margin: 0, letterSpacing: "-0.02em" }}>Fila Help Desk</h1>
         </div>
         <div className="noc-clock" style={{ textAlign: "right" }}>
           <div className="t" style={{ fontSize: "1.2rem", fontWeight: "600" }}>{now.toLocaleTimeString("pt-BR")}</div>
