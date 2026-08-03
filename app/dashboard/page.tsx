@@ -134,13 +134,15 @@ export default function DashboardPage() {
 
   return (
     <div className="dash-full">
-      <header className="noc-head">
-        <div className="noc-clock">
-          <div className="t">{now.toLocaleTimeString("pt-BR")}</div>
-          <div className="d">{now.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })}</div>
+      <header className="noc-head" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "24px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+          <img src="/yamaha-logo.png" alt="Yamaha" className="noc-logo" style={{ height: "46px", objectFit: "contain", background: "white", padding: "4px 8px", borderRadius: "6px" }} />
+          <h1 className="noc-title" style={{ fontSize: "1.5rem", fontWeight: "600", margin: 0 }}>Help Desk</h1>
         </div>
-        <img src="/yamaha-logo.png" alt="Yamaha" className="noc-logo" />
-        <h1 className="noc-title">Central de Operações · Help Desk</h1>
+        <div className="noc-clock" style={{ textAlign: "right" }}>
+          <div className="t" style={{ fontSize: "1.2rem", fontWeight: "600" }}>{now.toLocaleTimeString("pt-BR")}</div>
+          <div className="d" style={{ fontSize: "0.85rem", color: "var(--text-mute)" }}>{now.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })}</div>
+        </div>
       </header>
 
       {/* KPI instruments */}
