@@ -222,4 +222,4 @@ function translateState(state: string | undefined | null): string | null {
   }
 }
 
-export const uccxInfo = { host: HOST, adminPort: ADMIN_PORT, finessePort: FINESSE_PORT, hasSupervisor: Boolean(SUP_USER && SUP_PASS) };
+export const uccxInfo = { host: HOST, adminPort: ADMIN_PORT, finessePort: FINESSE_PORT, hasSupervisor: Boolean(process.env.UCCX_AUTH_B64 || (SUP_USER && SUP_PASS)) };
