@@ -16,8 +16,6 @@ fi
 
 if [ "$1" = "dev" ]; then
   exec npm run dev -- -H 0.0.0.0
-elif [ "$1" = "prod" ]; then
-  exec npm run start -- -H 0.0.0.0
 else
   npm run build
   exec npm run start -- -H 0.0.0.0
