@@ -1,6 +1,6 @@
-import DashboardView from "@/components/dashboard/DashboardView";
+import { redirect } from "next/navigation";
 
-// Produção — sem os ajustes em validação com o cliente.
-export default function DashboardPage() {
-  return <DashboardView />;
+// Rota antiga — mantém links existentes funcionando.
+export default function DashboardIndex() {
+  redirect("/dashboard/help-desk");
 }
