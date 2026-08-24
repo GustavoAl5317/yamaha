@@ -188,7 +188,8 @@ async function kpisToday(conn: any, csqId: number): Promise<QueueKpis | null> {
     received,
     answered: num(r.answered),
     abandoned: num(r.abandoned),
-    slPct: received > 0 ? Math.round((num(r.metsl) / received) * 100) : 0,
+    // Sem chamadas no dia = nenhuma fora do nível de serviço: começa em 100%.
+    slPct: received > 0 ? Math.round((num(r.metsl) / received) * 100) : 100,
     avgWaitSec: Math.round(num(r.avgwait)),
     avgHandleSec,
   };

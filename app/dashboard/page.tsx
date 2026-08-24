@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import type { QueueConfig, QueueLive, HourPoint, AgentConfig, DayPoint } from "@/lib/types";
-import { fmt, mmss, stateFor } from "@/lib/format";
+import { fmt, mmss, stateFor, titleCase } from "@/lib/format";
 import AgentsDonut from "@/components/charts/AgentsDonut";
 import DailyBarChart from "@/components/charts/DailyBarChart";
 import {
@@ -158,22 +158,22 @@ export default function DashboardPage() {
       <div className="grid">
         <div className="panel panel--wide">
           <div className="panel__hd">
-            <h3><BarChart3 size={14} /> Volume diário — {monthName(currentMonthNum, currentYear)}</h3>
-            <div className="legend"><i className="rec">Recebidas</i><i className="ans">Atendidas</i><i className="aba">Abandonadas</i></div>
-          </div>
-          {currMonthBars.length > 0
-            ? <DailyBarChart data={currMonthBars} />
-            : <div className="empty"><div className="ico"><BarChart3 /></div><p>Sem dados no mês atual.</p></div>}
-        </div>
-
-        <div className="panel panel--wide">
-          <div className="panel__hd">
             <h3><BarChart3 size={14} /> Volume diário — {monthName(prevMonthNum, prevMonthYear)}</h3>
             <div className="legend"><i className="rec">Recebidas</i><i className="ans">Atendidas</i><i className="aba">Abandonadas</i></div>
           </div>
           {prevMonthBars.length > 0
             ? <DailyBarChart data={prevMonthBars} />
             : <div className="empty"><div className="ico"><BarChart3 /></div><p>Sem dados no mês anterior.</p></div>}
+        </div>
+
+        <div className="panel panel--wide">
+          <div className="panel__hd">
+            <h3><BarChart3 size={14} /> Volume diário — {monthName(currentMonthNum, currentYear)}</h3>
+            <div className="legend"><i className="rec">Recebidas</i><i className="ans">Atendidas</i><i className="aba">Abandonadas</i></div>
+          </div>
+          {currMonthBars.length > 0
+            ? <DailyBarChart data={currMonthBars} />
+            : <div className="empty"><div className="ico"><BarChart3 /></div><p>Sem dados no mês atual.</p></div>}
         </div>
 
         {/* Atendentes — Finesse Team API */}
@@ -269,7 +269,7 @@ function AgentTableRow({ agent }: { agent: AgentConfig }) {
   };
   const color = stateColor[agent.state ?? ""] ?? "var(--text-mute)";
   const isOffline = agent.state === "Desconectado";
-  const name = `${agent.firstName} ${agent.lastName}`.trim();
+  const name = titleCase(`${agent.firstName} ${agent.lastName}`.trim());
 
   return (
     <tr style={{ borderBottom: "1px solid var(--line)", opacity: isOffline ? 0.5 : 1 }}>
