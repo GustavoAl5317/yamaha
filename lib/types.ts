@@ -56,6 +56,15 @@ export interface HourPoint {
 }
 
 // Volume por dia (para o gráfico mensal)
+// Quem ligou e abandonou no dia, agrupado por número (fonte: CQD × CCD)
+export interface AbandonedCaller {
+  number: string | null;   // contactcalldetail.originatordn (null = não identificado)
+  attempts: number;        // quantas vezes abandonou hoje
+  lastAt: string;          // último abandono, "YYYY-MM-DD HH:MM:SS.fff" em GMT
+  maxWaitSec: number;      // maior tempo que esperou antes de desistir
+  answeredLater: boolean;  // foi atendido depois do último abandono
+}
+
 export interface DayPoint {
   day: string;        // "2023-10-05"
   received: number;

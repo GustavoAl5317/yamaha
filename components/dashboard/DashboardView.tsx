@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import type { QueueConfig, QueueLive, HourPoint, AgentConfig, DayPoint } from "@/lib/types";
-import { fmt, mmss, stateFor, titleCase } from "@/lib/format";
+import type { QueueConfig, QueueLive, HourPoint, AgentConfig, DayPoint, AbandonedCaller } from "@/lib/types";
+import { fmt, mmss, stateFor, titleCase, formatPhone, hhmmFromDb } from "@/lib/format";
 import AgentsDonut from "@/components/charts/AgentsDonut";
 import DailyBarChart from "@/components/charts/DailyBarChart";
 import {
@@ -27,6 +27,7 @@ export default function DashboardView({ homolog = false }: { homolog?: boolean }
   const [queueId, setQueueId] = useState<string | null>(null);
   const [agents, setAgents] = useState<AgentConfig[]>([]);
   const [agentsError, setAgentsError] = useState<string | null>(null);
+  const [abandoned, setAbandoned] = useState<AbandonedCaller[] | null>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const agentTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -59,6 +60,20 @@ export default function DashboardView({ homolog = false }: { homolog?: boolean }
     const t = setInterval(fetchDaily, 300000); // Atualiza a cada 5 min
     return () => { alive = false; clearInterval(t); };
   }, [queueId]);
+
+  // Números que abandonaram hoje (homologação) — histórico, então 1 minuto basta
+  useEffect(() => {
+    if (!queueId || !homolog) return;
+    let alive = true;
+    function fetchAbandoned() {
+      fetch(`/api/queues/${queueId}/abandoned`, { cache: "no-store" }).then((r) => r.json()).then((j) => {
+        if (alive) setAbandoned(j.abandoned || []);
+      }).catch(() => {});
+    }
+    fetchAbandoned();
+    const t = setInterval(fetchAbandoned, 60000);
+    return () => { alive = false; clearInterval(t); };
+  }, [queueId, homolog]);
 
   // Poll realtime
   useEffect(() => {
@@ -189,8 +204,8 @@ export default function DashboardView({ homolog = false }: { homolog?: boolean }
           </div>
         ))}
 
-        {/* Atendentes — Finesse Team API */}
-        <div className="panel panel--xwide">
+        {/* Atendentes — Finesse Team API (na homologação divide a linha com as abandonadas) */}
+        <div className={"panel " + (homolog ? "panel--wide" : "panel--xwide")}>
           <div className="panel__hd">
             <h3><Users size={14} /> Atendentes — Help Desk</h3>
             <span className={"chip " + (agents.length > 0 ? "chip--live" : "chip--wait")}>
@@ -226,6 +241,41 @@ export default function DashboardView({ homolog = false }: { homolog?: boolean }
             </div>
           )}
         </div>
+
+        {/* Abandonadas hoje — número de quem ligou (homologação) */}
+        {homolog && (
+          <div className="panel">
+            <div className="panel__hd">
+              <h3><PhoneMissed size={14} /> Abandonadas hoje</h3>
+              {abandoned && abandoned.length > 0 && (
+                <span className="chip chip--wait">
+                  {abandoned.filter((a) => !a.answeredLater).length} sem retorno
+                </span>
+              )}
+            </div>
+            {abandoned === null ? (
+              <div className="empty"><div className="spinner" /></div>
+            ) : abandoned.length === 0 ? (
+              <div className="empty"><div className="ico"><PhoneMissed /></div><p>Nenhuma abandonada hoje.</p></div>
+            ) : (
+              <ul className="abd-list">
+                {abandoned.map((a, i) => (
+                  <li key={(a.number ?? "sem-numero") + i} className={"abd-row" + (a.answeredLater ? " abd-row--done" : "")}>
+                    <div className="abd-main">
+                      <span className="abd-num num">{formatPhone(a.number)}</span>
+                      {a.attempts > 1 && <span className="abd-times">{a.attempts}x</span>}
+                    </div>
+                    <div className="abd-meta">
+                      <span>{hhmmFromDb(a.lastAt)}</span>
+                      <span>esperou {mmss(a.maxWaitSec)}</span>
+                      {a.answeredLater && <span className="abd-ok">atendido depois</span>}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
 
         {/* Agents (Donut) */}
         <div className="panel">

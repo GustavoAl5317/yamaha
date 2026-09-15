@@ -249,3 +249,15 @@ button { font-family: inherit; cursor: pointer; color: inherit; }
 .agent-card__dot { width: 8px; height: 8px; }
 /* Painel "Agentes agora": donut menor */
 .panel .agset { gap: 9px; }
+
+/* ===== Abandonadas hoje (número de quem ligou) ===== */
+.abd-list { list-style: none; display: flex; flex-direction: column; gap: 6px; max-height: 260px; overflow-y: auto; padding-right: 4px; }
+.abd-list::-webkit-scrollbar { width: 6px; }
+.abd-list::-webkit-scrollbar-thumb { background: var(--line); border-radius: 6px; }
+.abd-row { padding: 8px 10px; border-radius: var(--r-sm); background: var(--ink); border: 1px solid var(--line-soft); border-left: 3px solid var(--racing); }
+.abd-row--done { border-left-color: var(--ok); opacity: .55; }
+.abd-main { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.abd-num { font-size: .92rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.abd-times { font-size: .66rem; font-weight: 700; color: var(--racing); background: #2a0e14; border: 1px solid #5a1a26; border-radius: 999px; padding: 1px 7px; flex: 0 0 auto; }
+.abd-meta { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 3px; font-size: .7rem; color: var(--text-mute); }
+.abd-ok { color: var(--ok); font-weight: 600; }

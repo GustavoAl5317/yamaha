@@ -26,6 +26,26 @@ export function titleCase(name: string | null | undefined): string {
     .join(" ");
 }
 
+/** Formata o número de origem: ramal curto, (DD) XXXXX-XXXX, ou o valor cru se não reconhecer. */
+export function formatPhone(raw: string | null | undefined): string {
+  if (!raw) return "Não identificado";
+  let d = raw.replace(/\D/g, "");
+  if (d.length === 0) return raw;
+  if (d.length <= 6) return `Ramal ${d}`;
+  if (d.length >= 12 && d.startsWith("55")) d = d.slice(2);   // DDI Brasil
+  if (d.length >= 11 && d.startsWith("0")) d = d.slice(1);    // prefixo de tronco
+  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  return raw;
+}
+
+/** Horário (HH:MM, Brasília) de um datetime do banco, que vem em GMT "YYYY-MM-DD HH:MM:SS.fff". */
+export function hhmmFromDb(dbDatetime: string): string {
+  const t = new Date(dbDatetime.trim().replace(" ", "T") + "Z");
+  if (Number.isNaN(t.getTime())) return "—";
+  return t.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" });
+}
+
 /** invert=false: quanto maior, pior. Retorna 'ok' | 'warn' | 'crit'. */
 export function stateFor(v: number | null | undefined, warn: number, crit: number): string {
   if (v === null || v === undefined) return "";

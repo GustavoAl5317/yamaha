@@ -365,3 +365,67 @@ export async function getDaily(csqId: string): Promise<import("./types").DayPoin
     try { conn?.closeSync(); } catch { /* noop */ }
   }
 }
+
+/**
+ * Números que abandonaram a fila hoje, agrupados por número.
+ * Marca quem foi atendido depois do último abandono, para não retornar à toa.
+ */
+export async function getAbandoned(csqId: string): Promise<import("./types").AbandonedCaller[]> {
+  const ibmdb = loadDriver();
+  if (!ibmdb) return [];
+  let conn: any;
+  try {
+    conn = await open(ibmdb);
+  } catch {
+    return [];
+  }
+  const base = `FROM contactqueuedetail cqd, contactservicequeue csq, contactcalldetail ccd
+    WHERE cqd.targetid = csq.recordid AND cqd.targettype = 0
+      AND csq.contactservicequeueid = ${Number(csqId)}
+      AND cqd.sessionid = ccd.sessionid AND cqd.sessionseqnum = ccd.sessionseqnum
+      AND cqd.startdatetime >= TODAY`;
+  try {
+    const [abandoned, answered] = await Promise.all([
+      query(
+        conn,
+        `SELECT ccd.originatordn numero, COUNT(*) tentativas,
+                MAX(cqd.startdatetime) ultima, MAX(cqd.queuetime) maior_espera
+           ${base} AND cqd.disposition = 1
+          GROUP BY 1 ORDER BY 3 DESC`,
+      ),
+      query(
+        conn,
+        `SELECT ccd.originatordn numero, MAX(cqd.startdatetime) ultima
+           ${base} AND cqd.disposition = 2
+          GROUP BY 1`,
+      ),
+    ]);
+    const clean = (v: any) => {
+      const s = v == null ? "" : String(v).trim();
+      return s === "" ? null : s;
+    };
+    const lastAnswered = new Map<string, string>();
+    for (const r of answered || []) {
+      const n = clean(r.numero);
+      if (n) lastAnswered.set(n, String(r.ultima));
+    }
+    return (abandoned || []).map((r) => {
+      const number = clean(r.numero);
+      const lastAt = String(r.ultima);
+      // Mesmo formato de data vindo do banco: a comparação de texto respeita a ordem cronológica.
+      const ans = number ? lastAnswered.get(number) : undefined;
+      return {
+        number,
+        attempts: num(r.tentativas),
+        lastAt,
+        maxWaitSec: num(r.maior_espera),
+        answeredLater: ans != null && ans > lastAt,
+      };
+    });
+  } catch (e: any) {
+    console.error("[informix] getAbandoned:", e?.message);
+    return [];
+  } finally {
+    try { conn?.closeSync(); } catch { /* noop */ }
+  }
+}
