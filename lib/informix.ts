@@ -366,11 +366,25 @@ export async function getDaily(csqId: string): Promise<import("./types").DayPoin
   }
 }
 
+/** Filtro de período em SQL: um dia "YYYY-MM-DD" (mesma data do banco usada no gráfico diário) ou hoje. */
+function dayFilter(day?: string | null): string | null {
+  if (!day) return "cqd.startdatetime >= TODAY";
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day);
+  if (!m) return null;
+  const start = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+  if (Number.isNaN(start.getTime()) || start.toISOString().slice(0, 10) !== day) return null;
+  const next = new Date(start.getTime() + 86400000).toISOString().slice(0, 10);
+  return `cqd.startdatetime >= DATETIME(${day} 00:00:00) YEAR TO SECOND
+      AND cqd.startdatetime < DATETIME(${next} 00:00:00) YEAR TO SECOND`;
+}
+
 /**
- * Números que abandonaram a fila hoje, agrupados por número.
+ * Números que abandonaram a fila em um dia (padrão: hoje), agrupados por número.
  * Marca quem foi atendido depois do último abandono, para não retornar à toa.
  */
-export async function getAbandoned(csqId: string): Promise<import("./types").AbandonedCaller[]> {
+export async function getAbandoned(csqId: string, day?: string | null): Promise<import("./types").AbandonedCaller[]> {
+  const period = dayFilter(day);
+  if (!period) return [];
   const ibmdb = loadDriver();
   if (!ibmdb) return [];
   let conn: any;
@@ -383,7 +397,7 @@ export async function getAbandoned(csqId: string): Promise<import("./types").Aba
     WHERE cqd.targetid = csq.recordid AND cqd.targettype = 0
       AND csq.contactservicequeueid = ${Number(csqId)}
       AND cqd.sessionid = ccd.sessionid AND cqd.sessionseqnum = ccd.sessionseqnum
-      AND cqd.startdatetime >= TODAY`;
+      AND ${period}`;
   try {
     const [abandoned, answered] = await Promise.all([
       query(

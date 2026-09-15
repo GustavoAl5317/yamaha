@@ -28,6 +28,7 @@ export default function DashboardView({ homolog = false }: { homolog?: boolean }
   const [agents, setAgents] = useState<AgentConfig[]>([]);
   const [agentsError, setAgentsError] = useState<string | null>(null);
   const [abandoned, setAbandoned] = useState<AbandonedCaller[] | null>(null);
+  const [abdDay, setAbdDay] = useState<string | null>(null); // "YYYY-MM-DD" escolhido no gráfico; null = hoje
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const agentTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -61,19 +62,25 @@ export default function DashboardView({ homolog = false }: { homolog?: boolean }
     return () => { alive = false; clearInterval(t); };
   }, [queueId]);
 
-  // Números que abandonaram hoje (homologação) — histórico, então 1 minuto basta
+  // Números que abandonaram (homologação). Sem dia escolhido = hoje, atualizado a cada minuto;
+  // dia escolhido no gráfico = consulta única, pois é histórico fechado.
   useEffect(() => {
     if (!queueId || !homolog) return;
     let alive = true;
+    setAbandoned(null);
     function fetchAbandoned() {
-      fetch(`/api/queues/${queueId}/abandoned`, { cache: "no-store" }).then((r) => r.json()).then((j) => {
+      const q = abdDay ? `?day=${abdDay}` : "";
+      fetch(`/api/queues/${queueId}/abandoned${q}`, { cache: "no-store" }).then((r) => r.json()).then((j) => {
         if (alive) setAbandoned(j.abandoned || []);
       }).catch(() => {});
     }
     fetchAbandoned();
-    const t = setInterval(fetchAbandoned, 60000);
-    return () => { alive = false; clearInterval(t); };
-  }, [queueId, homolog]);
+    const t = abdDay ? null : setInterval(fetchAbandoned, 60000);
+    return () => { alive = false; if (t) clearInterval(t); };
+  }, [queueId, homolog, abdDay]);
+
+  // Clique no mesmo dia de novo volta para hoje.
+  const selectAbandonedDay = (day: string) => setAbdDay((cur) => (cur === day ? null : day));
 
   // Poll realtime
   useEffect(() => {
@@ -149,7 +156,7 @@ export default function DashboardView({ homolog = false }: { homolog?: boolean }
   const dayBars = (monthNum: number, year: number) => daily
     .filter((d) => { const dt = new Date(d.day + "T12:00:00"); return dt.getMonth() === monthNum && dt.getFullYear() === year; })
     .sort((a, b) => a.day.localeCompare(b.day))
-    .map((d) => ({ label: String(Number(d.day.slice(8, 10))), received: d.received, answered: d.answered, abandoned: d.abandoned }));
+    .map((d) => ({ day: d.day, label: String(Number(d.day.slice(8, 10))), received: d.received, answered: d.answered, abandoned: d.abandoned }));
 
   const currMonthBars = dayBars(currentMonthNum, currentYear);
   const prevMonthBars = dayBars(prevMonthNum, prevMonthYear);
@@ -199,7 +206,12 @@ export default function DashboardView({ homolog = false }: { homolog?: boolean }
               <div className="legend"><i className="rec">Recebidas</i><i className="ans">Atendidas</i><i className="aba">Abandonadas</i></div>
             </div>
             {m.bars.length > 0
-              ? <DailyBarChart data={m.bars} showLabels={homolog} />
+              ? <DailyBarChart
+                  data={m.bars}
+                  showLabels={homolog}
+                  onDayClick={homolog ? selectAbandonedDay : undefined}
+                  selectedDay={homolog ? abdDay : null}
+                />
               : <div className="empty"><div className="ico"><BarChart3 /></div><p>{m.empty}</p></div>}
           </div>
         ))}
@@ -246,17 +258,23 @@ export default function DashboardView({ homolog = false }: { homolog?: boolean }
         {homolog && (
           <div className="panel">
             <div className="panel__hd">
-              <h3><PhoneMissed size={14} /> Abandonadas hoje</h3>
-              {abandoned && abandoned.length > 0 && (
+              <h3>
+                <PhoneMissed size={14} /> Abandonadas{" "}
+                {abdDay ? `em ${abdDay.slice(8, 10)}/${abdDay.slice(5, 7)}` : "hoje"}
+              </h3>
+              {abdDay ? (
+                <button className="chip abd-back" onClick={() => setAbdDay(null)}>voltar para hoje</button>
+              ) : abandoned && abandoned.length > 0 ? (
                 <span className="chip chip--wait">
                   {abandoned.filter((a) => !a.answeredLater).length} sem retorno
                 </span>
-              )}
+              ) : null}
             </div>
             {abandoned === null ? (
               <div className="empty"><div className="spinner" /></div>
             ) : abandoned.length === 0 ? (
-              <div className="empty"><div className="ico"><PhoneMissed /></div><p>Nenhuma abandonada hoje.</p></div>
+              <div className="empty"><div className="ico"><PhoneMissed /></div><p>{abdDay ? "Nenhuma abandonada nesse dia." : "Nenhuma abandonada hoje."}</p>
+                {!abdDay && <p style={{ fontSize: ".72rem", color: "var(--text-mute)" }}>Clique num dia do gráfico para ver outro dia.</p>}</div>
             ) : (
               <ul className="abd-list">
                 {abandoned.map((a, i) => (

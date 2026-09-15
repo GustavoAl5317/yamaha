@@ -261,3 +261,5 @@ button { font-family: inherit; cursor: pointer; color: inherit; }
 .abd-times { font-size: .66rem; font-weight: 700; color: var(--racing); background: #2a0e14; border: 1px solid #5a1a26; border-radius: 999px; padding: 1px 7px; flex: 0 0 auto; }
 .abd-meta { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 3px; font-size: .7rem; color: var(--text-mute); }
 .abd-ok { color: var(--ok); font-weight: 600; }
+.abd-back { background: var(--surface); cursor: pointer; color: var(--info); border-color: #1f4468; }
+.abd-back:hover { background: #10243a; }
