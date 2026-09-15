@@ -1,6 +1,6 @@
 import DashboardView from "@/components/dashboard/DashboardView";
 
-// Produção — sem os ajustes em validação com o cliente.
+// Produção — com os ajustes aprovados na homologação.
 export default function HelpDeskPage() {
-  return <DashboardView />;
+  return <DashboardView homolog />;
 }

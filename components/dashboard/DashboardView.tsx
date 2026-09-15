@@ -18,7 +18,14 @@ const HELP_DESK_QUEUE = "Help_Desk";
  * ordem dos meses invertida, quantidade acima das colunas, nível de serviço
  * iniciando em 100% e nomes padronizados. Produção (/dashboard) fica sem eles.
  */
-export default function DashboardView({ homolog = false }: { homolog?: boolean }) {
+export default function DashboardView({
+  homolog = false,
+  badge,
+}: {
+  homolog?: boolean;
+  /** Selo exibido ao lado do título (ex.: "Homologação"). Independe das funcionalidades. */
+  badge?: string;
+}) {
   const [config, setConfig] = useState<QueueConfig | null>(null);
   const [cfgError, setCfgError] = useState<string | null>(null);
   const [live, setLive] = useState<QueueLive | null>(null);
@@ -168,8 +175,8 @@ export default function DashboardView({ homolog = false }: { homolog?: boolean }
         <div style={{ display: "flex", alignItems: "center", gap: "24px" }}>
           <img src="/yamaha-logo.png" alt="Yamaha" className="noc-logo" style={{ height: "70px", objectFit: "contain", background: "white", padding: "6px 12px", borderRadius: "8px" }} />
           <h1 className="noc-title" style={{ fontSize: "2.4rem", fontWeight: "700", margin: 0, letterSpacing: "-0.02em" }}>Fila Help Desk</h1>
-          {homolog && (
-            <span className="chip chip--wait" style={{ fontSize: ".72rem", alignSelf: "center" }}>Homologação</span>
+          {badge && (
+            <span className="chip chip--wait" style={{ fontSize: ".72rem", alignSelf: "center" }}>{badge}</span>
           )}
         </div>
         <div className="noc-clock" style={{ textAlign: "right" }}>
