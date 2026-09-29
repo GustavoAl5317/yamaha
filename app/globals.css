@@ -265,36 +265,125 @@ button { font-family: inherit; cursor: pointer; color: inherit; }
 .abd-back:hover { background: #10243a; }
 
 /* ===== Painel administrativo ===== */
-.admin-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
-.admin-login { max-width: 380px; margin: 12vh auto 0; }
-.admin-form { display: flex; flex-direction: column; gap: 14px; }
-.admin-field { display: flex; flex-direction: column; gap: 5px; font-size: .74rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: .04em; }
+.admin-page { max-width: 1240px; margin: 0 auto; padding: 26px 24px 40px; }
+.admin-center { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+
+/* Cabeçalho */
+.admin-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding-bottom: 18px; border-bottom: 1px solid var(--line-soft); }
+.admin-top__id { display: flex; align-items: center; gap: 16px; }
+.admin-top__logo { height: 44px; object-fit: contain; background: #fff; padding: 5px 11px; border-radius: var(--r-sm); }
+.admin-top h1 { font-size: 1.35rem; font-weight: 700; letter-spacing: -.02em; }
+.admin-top p { font-size: .8rem; color: var(--text-dim); margin-top: 2px; }
+
+/* Cartões de contagem */
+.admin-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin: 18px 0; }
+.admin-stat {
+  display: flex; align-items: center; gap: 12px; padding: 13px 16px;
+  background: linear-gradient(180deg, var(--surface), var(--ink-2));
+  border: 1px solid var(--line-soft); border-radius: var(--r); box-shadow: var(--shadow);
+}
+.admin-stat__ico { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: #1a2437; color: var(--info); flex: 0 0 auto; }
+.admin-stat strong { display: block; font-size: 1.4rem; font-weight: 700; line-height: 1.1; }
+.admin-stat span:last-child { font-size: .72rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: .05em; }
+.admin-stat--ok .admin-stat__ico { color: var(--ok); }
+.admin-stat--off .admin-stat__ico { color: var(--text-mute); }
+
+/* Cartões */
+.admin-cols { display: grid; grid-template-columns: minmax(300px, 380px) 1fr; gap: 16px; align-items: start; }
+@media (max-width: 900px) { .admin-cols { grid-template-columns: 1fr; } }
+.admin-card {
+  background: linear-gradient(180deg, var(--surface), var(--ink-2));
+  border: 1px solid var(--line-soft); border-radius: var(--r-lg);
+  padding: 20px; box-shadow: var(--shadow);
+}
+.admin-card--narrow { width: 100%; max-width: 380px; text-align: center; display: flex; flex-direction: column; gap: 12px; }
+.admin-card--narrow h2 { font-size: 1.1rem; font-weight: 700; }
+.admin-card__hd { display: flex; align-items: center; gap: 8px; font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--text-dim); margin-bottom: 16px; }
+.admin-card__hd svg { color: var(--info); }
+.admin-count { margin-left: auto; font-size: .72rem; color: var(--info); background: #10243a; border: 1px solid #1f4468; border-radius: 999px; padding: 2px 9px; }
+.admin-card__ico { align-self: center; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 14px; background: #10243a; border: 1px solid #1f4468; color: var(--info); }
+.admin-card__ico--crit { background: #2a0e14; border-color: #5a1a26; color: var(--crit); }
+.admin-sub { font-size: .82rem; color: var(--text-dim); line-height: 1.5; }
+.admin-login__logo { height: 40px; object-fit: contain; background: #fff; padding: 5px 12px; border-radius: var(--r-sm); align-self: center; }
+
+/* Formulário */
+.admin-form { display: flex; flex-direction: column; gap: 16px; text-align: left; }
+.admin-field { display: flex; flex-direction: column; gap: 6px; text-align: left; }
+.admin-field > span { font-size: .7rem; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: .06em; }
 .admin-field input, .admin-field select {
-  font: inherit; font-size: .9rem; text-transform: none; letter-spacing: 0;
-  color: var(--text); background: var(--ink); border: 1px solid var(--line);
-  border-radius: var(--r-sm); padding: 9px 11px; outline: none;
+  font: inherit; font-size: .9rem; color: var(--text); background: var(--ink);
+  border: 1px solid var(--line); border-radius: var(--r-sm); padding: 10px 12px; outline: none;
+  transition: border-color .15s, box-shadow .15s;
 }
-.admin-field input:focus, .admin-field select:focus { border-color: var(--info); }
+.admin-field input::placeholder { color: var(--text-mute); }
+.admin-field input:focus, .admin-field select:focus { border-color: var(--info); box-shadow: 0 0 0 3px #56b6ff22; }
+.admin-hint { font-size: .7rem; color: var(--text-mute); }
+
+/* Botões */
 .admin-btn {
-  display: inline-flex; align-items: center; gap: 6px; font: inherit; font-size: .78rem; font-weight: 600;
-  color: var(--text); background: var(--surface); border: 1px solid var(--line);
-  border-radius: var(--r-sm); padding: 7px 12px; cursor: pointer; text-decoration: none;
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  font: inherit; font-size: .78rem; font-weight: 600; color: var(--text);
+  background: var(--raised); border: 1px solid var(--line); border-radius: var(--r-sm);
+  padding: 8px 13px; cursor: pointer; text-decoration: none; white-space: nowrap;
+  transition: background .15s, border-color .15s, color .15s;
 }
-.admin-btn:hover { background: var(--ink); border-color: var(--info); }
-.admin-btn--primary { background: #10243a; border-color: #1f4468; color: var(--info); justify-content: center; padding: 10px 14px; }
-.admin-btn--primary:disabled { opacity: .5; cursor: default; }
-.admin-btn--danger { color: var(--racing); }
-.admin-btn--danger:hover { border-color: var(--racing); }
-.admin-error { color: var(--crit); font-size: .8rem; margin: 0 0 12px; }
-.admin-blocks { border: 1px solid var(--line-soft); border-radius: var(--r-sm); padding: 10px 12px; display: flex; flex-wrap: wrap; gap: 6px 18px; }
-.admin-blocks legend { font-size: .68rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: .04em; padding: 0 6px; }
-.admin-blocks--inline { margin-top: 10px; background: var(--ink); }
-.admin-check { display: inline-flex; align-items: center; gap: 6px; font-size: .78rem; color: var(--text-dim); cursor: pointer; }
-.admin-check input { accent-color: var(--info); width: 14px; height: 14px; cursor: pointer; }
-.admin-list { list-style: none; display: flex; flex-direction: column; gap: 10px; }
-.admin-item { border: 1px solid var(--line-soft); border-left: 3px solid var(--ok); border-radius: var(--r-sm); padding: 12px 14px; background: var(--ink); }
-.admin-item--off { border-left-color: var(--text-mute); opacity: .6; }
+.admin-btn:hover { background: #22304a; border-color: #32446a; }
+.admin-btn--sm { font-size: .73rem; padding: 6px 10px; }
+.admin-btn--block { width: 100%; padding: 11px 14px; font-size: .85rem; }
+.admin-btn--primary { background: linear-gradient(180deg, #1d4d7d, #143a60); border-color: #2a6296; color: #eaf6ff; }
+.admin-btn--primary:hover { background: linear-gradient(180deg, #24629e, #17477a); border-color: #3b7dbd; }
+.admin-btn--primary:disabled { opacity: .55; cursor: default; }
+.admin-btn--danger { color: var(--crit); }
+.admin-btn--danger:hover { border-color: var(--crit); background: #2a0e14; }
+.admin-error { color: var(--crit); font-size: .8rem; }
+.admin-error--bar { background: #2a0e14; border: 1px solid #5a1a26; border-radius: var(--r-sm); padding: 9px 12px; margin-bottom: 16px; }
+
+/* Pílulas dos blocos */
+.admin-pills { display: flex; flex-wrap: wrap; gap: 7px; }
+.admin-pill {
+  display: inline-flex; align-items: center; gap: 6px; font: inherit; font-size: .74rem; font-weight: 500;
+  color: var(--text-mute); background: var(--ink); border: 1px solid var(--line);
+  border-radius: 999px; padding: 6px 12px; cursor: pointer; transition: all .15s;
+}
+.admin-pill svg { opacity: 0; transition: opacity .15s; }
+.admin-pill:hover { border-color: #32446a; color: var(--text-dim); }
+.admin-pill--on { color: var(--info); background: #10243a; border-color: #1f4468; }
+.admin-pill--on svg { opacity: 1; }
+
+/* Confirmação de liberação */
+.admin-done { margin-top: 18px; padding: 14px; border: 1px solid #1c4a38; border-radius: var(--r); background: #0d2019; display: flex; flex-direction: column; gap: 9px; }
+.admin-done strong { display: flex; align-items: center; gap: 7px; font-size: .84rem; color: var(--ok); }
+
+/* Lista */
+.admin-list { list-style: none; display: flex; flex-direction: column; gap: 12px; }
+.admin-item { border: 1px solid var(--line-soft); border-radius: var(--r); padding: 14px 16px; background: var(--ink-2); transition: border-color .15s; }
+.admin-item:hover { border-color: var(--line); }
+.admin-item--off { opacity: .62; }
 .admin-item__hd { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.admin-queue { font-size: .7rem; color: var(--text-mute); margin-left: 8px; }
-.admin-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.admin-link { display: block; margin-top: 6px; font-size: .74rem; color: var(--info); word-break: break-all; }
+.admin-item__id { display: flex; align-items: center; gap: 11px; }
+.admin-item__id strong { display: block; font-size: .95rem; font-weight: 600; }
+.admin-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--text-mute); flex: 0 0 auto; }
+.admin-dot--on { background: var(--ok); box-shadow: 0 0 9px var(--ok); }
+.admin-queue { font-size: .72rem; color: var(--text-mute); }
+.admin-item__link { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 11px; }
+.admin-link { flex: 1 1 240px; font-size: .75rem; color: var(--info); background: var(--ink); border: 1px solid var(--line-soft); border-radius: var(--r-sm); padding: 7px 10px; word-break: break-all; }
+.admin-actions { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+
+/* Chave no ar / pausado */
+.admin-switch {
+  display: inline-flex; align-items: center; gap: 9px; font: inherit; font-size: .74rem; font-weight: 600;
+  color: var(--text-mute); background: var(--ink); border: 1px solid var(--line);
+  border-radius: 999px; padding: 5px 13px 5px 6px; cursor: pointer; transition: all .15s;
+}
+.admin-switch__knob { width: 26px; height: 15px; border-radius: 999px; background: var(--line); position: relative; transition: background .15s; }
+.admin-switch__knob::after { content: ""; position: absolute; top: 2px; left: 2px; width: 11px; height: 11px; border-radius: 50%; background: var(--text-mute); transition: transform .15s, background .15s; }
+.admin-switch--on { color: var(--ok); border-color: #1c4a38; background: #0d2019; }
+.admin-switch--on .admin-switch__knob { background: #1c4a38; }
+.admin-switch--on .admin-switch__knob::after { transform: translateX(11px); background: var(--ok); }
+
+/* Blocos por dashboard */
+.admin-blocks { margin-top: 12px; border-top: 1px solid var(--line-soft); padding-top: 11px; }
+.admin-blocks__hd { display: flex; align-items: center; gap: 7px; font-size: .7rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--text-dim); margin-bottom: 9px; }
+.admin-blocks__hd em { margin-left: auto; font-style: normal; text-transform: none; letter-spacing: 0; color: var(--text-mute); }
+
+.admin-empty { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 40px 0; color: var(--text-mute); font-size: .84rem; }
