@@ -4,6 +4,7 @@ import type { QueueConfig, QueueLive, HourPoint, AgentConfig, DayPoint, Abandone
 import { fmt, mmss, stateFor, titleCase, formatPhone, hhmmFromDb } from "@/lib/format";
 import AgentsDonut from "@/components/charts/AgentsDonut";
 import DailyBarChart from "@/components/charts/DailyBarChart";
+import { DEFAULT_BLOCKS, type DashboardBlocks } from "@/lib/dashboard-blocks";
 import {
   PhoneIncoming, PhoneCall, PhoneMissed, Target, Clock, Timer,
   Users, Activity, AlertTriangle, BarChart3, Database,
@@ -13,18 +14,24 @@ const POLL_MS = 5000;
 const HELP_DESK_QUEUE = "Help_Desk";
 
 /**
- * Painel do Help Desk.
- * `homolog` liga os ajustes em validação com o cliente (rota /homologacao):
- * ordem dos meses invertida, quantidade acima das colunas, nível de serviço
- * iniciando em 100% e nomes padronizados. Produção (/dashboard) fica sem eles.
+ * Painel de uma fila. O Help Desk é o modelo: todos os blocos ligados.
+ * `blocks` vem do cadastro do admin e decide o que aparece.
  */
 export default function DashboardView({
   homolog = false,
   badge,
+  csqId,
+  title,
+  blocks = DEFAULT_BLOCKS,
 }: {
   homolog?: boolean;
   /** Selo exibido ao lado do título (ex.: "Homologação"). Independe das funcionalidades. */
   badge?: string;
+  /** Fila a exibir. Sem valor, usa o Help Desk. */
+  csqId?: string;
+  /** Título no topo. Sem valor, usa o nome da fila. */
+  title?: string;
+  blocks?: DashboardBlocks;
 }) {
   const [config, setConfig] = useState<QueueConfig | null>(null);
   const [cfgError, setCfgError] = useState<string | null>(null);
@@ -41,19 +48,20 @@ export default function DashboardView({
 
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(t); }, []);
 
-  // Detectar a fila Help_Desk automaticamente
+  // Carregar a fila escolhida no cadastro (ou o Help Desk, quando não informada)
   useEffect(() => {
     fetch("/api/queues").then((r) => r.json()).then((j) => {
       if (j.ok && j.queues.length) {
+        const chosen = csqId ? j.queues.find((x: QueueConfig) => x.id === String(csqId)) : null;
         const hd = j.queues.find((x: QueueConfig) => x.name.includes(HELP_DESK_QUEUE));
-        const q = hd || j.queues[0];
+        const q = chosen || hd || j.queues[0];
         setQueueId(q.id);
         setConfig(q);
       } else {
         setCfgError(j.error || "Falha ao listar filas");
       }
     }).catch((e) => setCfgError(String(e)));
-  }, []);
+  }, [csqId]);
 
   // Carregar daily
   useEffect(() => {
@@ -72,7 +80,7 @@ export default function DashboardView({
   // Números que abandonaram (homologação). Sem dia escolhido = hoje, atualizado a cada minuto;
   // dia escolhido no gráfico = consulta única, pois é histórico fechado.
   useEffect(() => {
-    if (!queueId || !homolog) return;
+    if (!queueId || !blocks.abandoned) return;
     let alive = true;
     setAbandoned(null);
     function fetchAbandoned() {
@@ -84,7 +92,7 @@ export default function DashboardView({
     fetchAbandoned();
     const t = abdDay ? null : setInterval(fetchAbandoned, 60000);
     return () => { alive = false; if (t) clearInterval(t); };
-  }, [queueId, homolog, abdDay]);
+  }, [queueId, blocks.abandoned, abdDay]);
 
   // Clique no mesmo dia de novo volta para hoje.
   const selectAbandonedDay = (day: string) => setAbdDay((cur) => (cur === day ? null : day));
@@ -174,7 +182,7 @@ export default function DashboardView({
       <header className="noc-head" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "24px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "24px" }}>
           <img src="/yamaha-logo.png" alt="Yamaha" className="noc-logo" style={{ height: "70px", objectFit: "contain", background: "white", padding: "6px 12px", borderRadius: "8px" }} />
-          <h1 className="noc-title" style={{ fontSize: "2.4rem", fontWeight: "700", margin: 0, letterSpacing: "-0.02em" }}>Fila Help Desk</h1>
+          <h1 className="noc-title" style={{ fontSize: "2.4rem", fontWeight: "700", margin: 0, letterSpacing: "-0.02em" }}>{title || config.name}</h1>
           {badge && (
             <span className="chip chip--wait" style={{ fontSize: ".72rem", alignSelf: "center" }}>{badge}</span>
           )}
@@ -186,27 +194,29 @@ export default function DashboardView({
       </header>
 
       {/* KPI instruments */}
-      <div className="kpis">
-        <Kpi ico={<PhoneIncoming size={15} />} label="Recebidas" value={fmt(k?.received)} foot="no dia" />
-        <Kpi ico={<PhoneCall size={15} />} label="Atendidas" value={fmt(k?.answered)} foot={ansPct != null ? `${ansPct}% do total` : ""} s="ok" />
-        <Kpi ico={<PhoneMissed size={15} />} label="Abandonadas" value={fmt(k?.abandoned)} foot={abaPct != null ? `${abaPct}% do total` : ""} s={stateFor(abaPct ?? undefined, 5, 10)} />
-        <Kpi ico={<Target size={15} />} label="Nível de Serviço" value={slValue != null ? `${slValue}%` : "—"} s={slState} />
-        <Kpi ico={<Clock size={15} />} label="T. Médio Espera" value={mmss(k?.avgWaitSec)} foot="TME" s={stateFor(k?.avgWaitSec, 20, 45)} />
-        <Kpi ico={<Timer size={15} />} label="T. Médio Atend." value={mmss(k?.avgHandleSec ?? undefined)} foot="TMA" />
-      </div>
+      {blocks.kpis && (
+        <div className="kpis">
+          <Kpi ico={<PhoneIncoming size={15} />} label="Recebidas" value={fmt(k?.received)} foot="no dia" />
+          <Kpi ico={<PhoneCall size={15} />} label="Atendidas" value={fmt(k?.answered)} foot={ansPct != null ? `${ansPct}% do total` : ""} s="ok" />
+          <Kpi ico={<PhoneMissed size={15} />} label="Abandonadas" value={fmt(k?.abandoned)} foot={abaPct != null ? `${abaPct}% do total` : ""} s={stateFor(abaPct ?? undefined, 5, 10)} />
+          <Kpi ico={<Target size={15} />} label="Nível de Serviço" value={slValue != null ? `${slValue}%` : "—"} s={slState} />
+          <Kpi ico={<Clock size={15} />} label="T. Médio Espera" value={mmss(k?.avgWaitSec)} foot="TME" s={stateFor(k?.avgWaitSec, 20, 45)} />
+          <Kpi ico={<Timer size={15} />} label="T. Médio Atend." value={mmss(k?.avgHandleSec ?? undefined)} foot="TMA" />
+        </div>
+      )}
 
       <div className="grid">
         {/* Homologação: mês anterior antes do atual. Produção: atual antes do anterior. */}
         {(homolog
           ? [
-              { bars: prevMonthBars, label: monthName(prevMonthNum, prevMonthYear), empty: "Sem dados no mês anterior." },
-              { bars: currMonthBars, label: monthName(currentMonthNum, currentYear), empty: "Sem dados no mês atual." },
+              { key: "prev", on: blocks.monthPrevious, bars: prevMonthBars, label: monthName(prevMonthNum, prevMonthYear), empty: "Sem dados no mês anterior." },
+              { key: "curr", on: blocks.monthCurrent, bars: currMonthBars, label: monthName(currentMonthNum, currentYear), empty: "Sem dados no mês atual." },
             ]
           : [
-              { bars: currMonthBars, label: monthName(currentMonthNum, currentYear), empty: "Sem dados no mês atual." },
-              { bars: prevMonthBars, label: monthName(prevMonthNum, prevMonthYear), empty: "Sem dados no mês anterior." },
+              { key: "curr", on: blocks.monthCurrent, bars: currMonthBars, label: monthName(currentMonthNum, currentYear), empty: "Sem dados no mês atual." },
+              { key: "prev", on: blocks.monthPrevious, bars: prevMonthBars, label: monthName(prevMonthNum, prevMonthYear), empty: "Sem dados no mês anterior." },
             ]
-        ).map((m) => (
+        ).filter((m) => m.on).map((m) => (
           <div className="panel panel--wide" key={m.label}>
             <div className="panel__hd">
               <h3><BarChart3 size={14} /> Volume diário — {m.label}</h3>
@@ -216,17 +226,18 @@ export default function DashboardView({
               ? <DailyBarChart
                   data={m.bars}
                   showLabels={homolog}
-                  onDayClick={homolog ? selectAbandonedDay : undefined}
-                  selectedDay={homolog ? abdDay : null}
+                  onDayClick={blocks.abandoned ? selectAbandonedDay : undefined}
+                  selectedDay={blocks.abandoned ? abdDay : null}
                 />
               : <div className="empty"><div className="ico"><BarChart3 /></div><p>{m.empty}</p></div>}
           </div>
         ))}
 
-        {/* Atendentes — Finesse Team API (na homologação divide a linha com as abandonadas) */}
-        <div className={"panel " + (homolog ? "panel--wide" : "panel--xwide")}>
+        {/* Atendentes — Finesse Team API (divide a linha quando as abandonadas aparecem) */}
+        {blocks.agentsTable && (
+        <div className={"panel " + (blocks.abandoned ? "panel--wide" : "panel--xwide")}>
           <div className="panel__hd">
-            <h3><Users size={14} /> Atendentes — Help Desk</h3>
+            <h3><Users size={14} /> Atendentes — {(title || config.name).replace(/^Fila\s+/i, "")}</h3>
             <span className={"chip " + (agents.length > 0 ? "chip--live" : "chip--wait")}>
               {agents.length > 0 ? `${agents.filter(a => a.state !== "Desconectado").length} online` : "carregando…"}
             </span>
@@ -260,9 +271,10 @@ export default function DashboardView({
             </div>
           )}
         </div>
+        )}
 
-        {/* Abandonadas hoje — número de quem ligou (homologação) */}
-        {homolog && (
+        {/* Abandonadas hoje — número de quem ligou */}
+        {blocks.abandoned && (
           <div className="panel">
             <div className="panel__hd">
               <h3>
@@ -303,6 +315,7 @@ export default function DashboardView({
         )}
 
         {/* Agents (Donut) */}
+        {blocks.agentsDonut && (
         <div className="panel">
           <div className="panel__hd">
             <h3><Users size={14} /> Agentes agora</h3>
@@ -319,6 +332,7 @@ export default function DashboardView({
             </div>
           ) : <div className="empty"><div className="ico"><Users /></div><p>{inst?.reason || "Sem dado de agentes."}</p></div>}
         </div>
+        )}
       </div>
     </div>
   );
