@@ -9,5 +9,5 @@ export default function DashboardSlugPage({ params }: { params: { slug: string }
   const cfg = getDashboard(params.slug);
   if (!cfg || !cfg.enabled) notFound();
 
-  return <DashboardView homolog csqId={cfg.csqId} title={cfg.title} blocks={cfg.blocks} />;
+  return <DashboardView homolog csqId={cfg.csqId} title={cfg.title} teamId={cfg.teamId} blocks={cfg.blocks} />;
 }

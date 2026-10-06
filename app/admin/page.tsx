@@ -9,8 +9,11 @@ import {
 
 interface DashboardCfg {
   slug: string; title: string; csqId: string; csqName: string;
+  teamId?: string; teamName?: string;
   enabled: boolean; blocks: DashboardBlocks; createdAt: string;
 }
+
+interface Team { id: string; name: string; }
 
 export default function AdminPage() {
   const [ready, setReady] = useState(false);
@@ -22,11 +25,14 @@ export default function AdminPage() {
 
   const [list, setList] = useState<DashboardCfg[]>([]);
   const [queues, setQueues] = useState<QueueConfig[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [teamsError, setTeamsError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
 
   const [newTitle, setNewTitle] = useState("");
   const [newQueue, setNewQueue] = useState("");
+  const [newTeam, setNewTeam] = useState("");
   const [newBlocks, setNewBlocks] = useState<DashboardBlocks>({ ...DEFAULT_BLOCKS });
   const [creating, setCreating] = useState(false);
   const [justCreated, setJustCreated] = useState<DashboardCfg | null>(null);
@@ -45,6 +51,10 @@ export default function AdminPage() {
     fetch("/api/queues").then((r) => r.json()).then((j) => {
       if (j.ok) setQueues(j.queues);
     }).catch(() => {});
+    fetch("/api/teams").then((r) => r.json()).then((j) => {
+      if (j.ok) { setTeams(j.teams); setTeamsError(null); }
+      else setTeamsError(j.error || "Falha ao listar os times");
+    }).catch((e) => setTeamsError(String(e)));
   }, []);
 
   useEffect(() => { if (authed) load(); }, [authed, load]);
@@ -75,12 +85,17 @@ export default function AdminPage() {
     setCreating(true);
     const r = await fetch("/api/admin/dashboards", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: newTitle.trim(), csqId: q.id, csqName: q.name, blocks: newBlocks }),
+      body: JSON.stringify({
+        title: newTitle.trim(), csqId: q.id, csqName: q.name,
+        teamId: newTeam || undefined,
+        teamName: teams.find((t) => t.id === newTeam)?.name,
+        blocks: newBlocks,
+      }),
     });
     const j = await r.json();
     setCreating(false);
     if (!j.ok) { setError(j.error); return; }
-    setNewTitle(""); setNewQueue(""); setNewBlocks({ ...DEFAULT_BLOCKS });
+    setNewTitle(""); setNewQueue(""); setNewTeam(""); setNewBlocks({ ...DEFAULT_BLOCKS });
     setError(null);
     setJustCreated(j.dashboard);
     load();
@@ -202,6 +217,17 @@ export default function AdminPage() {
               {queues.length === 0 && <small className="admin-hint">Carregando as filas do banco…</small>}
             </label>
 
+            <label className="admin-field">
+              <span>Time dos atendentes</span>
+              <select value={newTeam} onChange={(e) => setNewTeam(e.target.value)}>
+                <option value="">Time padrão do servidor</option>
+                {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+              <small className="admin-hint">
+                {teamsError ? `Não foi possível listar os times: ${teamsError}` : "Define quem aparece na tabela de atendentes."}
+              </small>
+            </label>
+
             <div className="admin-field">
               <span>Blocos que o cliente vê</span>
               <div className="admin-pills">
@@ -281,6 +307,23 @@ export default function AdminPage() {
                       </button>
                     </div>
                   </div>
+
+                  <label className="admin-team">
+                    <span>Atendentes</span>
+                    <select
+                      value={d.teamId ?? ""}
+                      onChange={(e) => patch(d.slug, {
+                        teamId: e.target.value || null,
+                        teamName: teams.find((t) => t.id === e.target.value)?.name ?? null,
+                      })}
+                    >
+                      <option value="">Time padrão do servidor</option>
+                      {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      {d.teamId && !teams.some((t) => t.id === d.teamId) && (
+                        <option value={d.teamId}>{d.teamName || `Time ${d.teamId}`}</option>
+                      )}
+                    </select>
+                  </label>
 
                   <div className="admin-blocks">
                     <span className="admin-blocks__hd">

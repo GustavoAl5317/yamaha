@@ -21,6 +21,11 @@ export async function POST(req: Request) {
   if (!title || !csqId || !csqName) {
     return NextResponse.json({ ok: false, error: "Informe título e fila" }, { status: 400 });
   }
-  const cfg = createDashboard({ title, csqId, csqName, blocks: b?.blocks });
+  const cfg = createDashboard({
+    title, csqId, csqName,
+    teamId: b?.teamId ? String(b.teamId) : undefined,
+    teamName: b?.teamName ? String(b.teamName) : undefined,
+    blocks: b?.blocks,
+  });
   return NextResponse.json({ ok: true, dashboard: cfg });
 }

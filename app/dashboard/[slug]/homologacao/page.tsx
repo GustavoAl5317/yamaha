@@ -9,5 +9,5 @@ export default function DashboardSlugHomologacaoPage({ params }: { params: { slu
   const cfg = getDashboard(params.slug);
   if (!cfg) notFound();
 
-  return <DashboardView homolog badge="Homologação" csqId={cfg.csqId} title={cfg.title} blocks={cfg.blocks} />;
+  return <DashboardView homolog badge="Homologação" csqId={cfg.csqId} title={cfg.title} teamId={cfg.teamId} blocks={cfg.blocks} />;
 }

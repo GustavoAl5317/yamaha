@@ -16,6 +16,8 @@ export interface DashboardCfg {
   title: string;     // título no topo do painel
   csqId: string;     // fila (contactservicequeueid)
   csqName: string;
+  teamId?: string;   // time do Finesse exibido na tabela de atendentes
+  teamName?: string;
   enabled: boolean;  // desligado = link fora do ar
   blocks: DashboardBlocks;
   createdAt: string;
@@ -30,6 +32,8 @@ const SEED: DashboardCfg[] = [
     title: "Fila Help Desk",
     csqId: "93",
     csqName: "Help_Desk_csq",
+    teamId: process.env.FINESSE_TEAM_ID || "17",
+    teamName: "Help Desk",
     enabled: true,
     blocks: { ...DEFAULT_BLOCKS },
     createdAt: new Date().toISOString(),
@@ -70,7 +74,8 @@ export function slugify(text: string): string {
 
 /** Cria um dashboard. Gera slug único a partir do título. */
 export function createDashboard(input: {
-  title: string; csqId: string; csqName: string; blocks?: Partial<DashboardBlocks>;
+  title: string; csqId: string; csqName: string;
+  teamId?: string; teamName?: string; blocks?: Partial<DashboardBlocks>;
 }): DashboardCfg {
   const list = readAll();
   const base = slugify(input.title) || "painel";
@@ -82,6 +87,8 @@ export function createDashboard(input: {
     title: input.title.trim(),
     csqId: String(input.csqId),
     csqName: input.csqName,
+    teamId: input.teamId ? String(input.teamId) : undefined,
+    teamName: input.teamName || undefined,
     enabled: true,
     blocks: { ...DEFAULT_BLOCKS, ...(input.blocks ?? {}) },
     createdAt: new Date().toISOString(),
@@ -93,7 +100,7 @@ export function createDashboard(input: {
 /** Atualiza título, fila, blocos ou liberação. O slug não muda, para não quebrar o link. */
 export function updateDashboard(
   slug: string,
-  patch: Partial<Pick<DashboardCfg, "title" | "csqId" | "csqName" | "enabled">> & { blocks?: Partial<DashboardBlocks> },
+  patch: Partial<Pick<DashboardCfg, "title" | "csqId" | "csqName" | "teamId" | "teamName" | "enabled">> & { blocks?: Partial<DashboardBlocks> },
 ): DashboardCfg | null {
   const list = readAll();
   const i = list.findIndex((d) => d.slug === slug);
@@ -104,6 +111,8 @@ export function updateDashboard(
     ...("title" in patch && patch.title ? { title: patch.title.trim() } : {}),
     ...("csqId" in patch && patch.csqId ? { csqId: String(patch.csqId) } : {}),
     ...("csqName" in patch && patch.csqName ? { csqName: patch.csqName } : {}),
+    ...("teamId" in patch ? { teamId: patch.teamId ? String(patch.teamId) : undefined } : {}),
+    ...("teamName" in patch ? { teamName: patch.teamName || undefined } : {}),
     ...("enabled" in patch && patch.enabled != null ? { enabled: patch.enabled } : {}),
     blocks: { ...cur.blocks, ...(patch.blocks ?? {}) },
   };

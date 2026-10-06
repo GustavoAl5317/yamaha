@@ -22,6 +22,7 @@ export default function DashboardView({
   badge,
   csqId,
   title,
+  teamId,
   blocks = DEFAULT_BLOCKS,
 }: {
   homolog?: boolean;
@@ -31,6 +32,8 @@ export default function DashboardView({
   csqId?: string;
   /** Título no topo. Sem valor, usa o nome da fila. */
   title?: string;
+  /** Time do Finesse da tabela de atendentes. Sem valor, usa o time padrão do .env. */
+  teamId?: string;
   blocks?: DashboardBlocks;
 }) {
   const [config, setConfig] = useState<QueueConfig | null>(null);
@@ -119,7 +122,7 @@ export default function DashboardView({
     let alive = true;
     async function pollAgents() {
       try {
-        const r = await fetch("/api/agents", { cache: "no-store" });
+        const r = await fetch(`/api/agents${teamId ? `?team=${encodeURIComponent(teamId)}` : ""}`, { cache: "no-store" });
         const j = await r.json();
         if (!alive) return;
         if (j.ok) { setAgents(j.agents); setAgentsError(null); }
@@ -131,7 +134,7 @@ export default function DashboardView({
     pollAgents();
     agentTimer.current = setInterval(pollAgents, POLL_MS);
     return () => { alive = false; if (agentTimer.current) clearInterval(agentTimer.current); };
-  }, []);
+  }, [teamId]);
 
   if (cfgError) return (
     <div className="dash-full">
