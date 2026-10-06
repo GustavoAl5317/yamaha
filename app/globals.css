@@ -381,15 +381,6 @@ button { font-family: inherit; cursor: pointer; color: inherit; }
 .admin-switch--on .admin-switch__knob { background: #1c4a38; }
 .admin-switch--on .admin-switch__knob::after { transform: translateX(11px); background: var(--ok); }
 
-/* Time dos atendentes */
-.admin-team { display: flex; align-items: center; gap: 10px; margin-top: 11px; font-size: .7rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--text-dim); }
-.admin-team select {
-  font: inherit; font-size: .78rem; font-weight: 500; text-transform: none; letter-spacing: 0;
-  color: var(--text); background: var(--ink); border: 1px solid var(--line);
-  border-radius: var(--r-sm); padding: 6px 10px; outline: none; flex: 1 1 180px; max-width: 280px;
-}
-.admin-team select:focus { border-color: var(--info); }
-
 /* Blocos por dashboard */
 .admin-blocks { margin-top: 12px; border-top: 1px solid var(--line-soft); padding-top: 11px; }
 .admin-blocks__hd { display: flex; align-items: center; gap: 7px; font-size: .7rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--text-dim); margin-bottom: 9px; }

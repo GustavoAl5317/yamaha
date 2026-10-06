@@ -198,22 +198,6 @@ function translateReason(r: string | null): string | null {
   });
 }
 
-/** Times do Finesse — usados para escolher quais atendentes aparecem em cada dashboard. */
-export async function getTeams(): Promise<{ id: string; name: string }[]> {
-  const useSup = Boolean(SUP_USER && SUP_PASS);
-  const user = useSup ? SUP_USER : ADMIN_USER;
-  const pass = useSup ? SUP_PASS : ADMIN_PASS;
-
-  const r = await httpGet(FINESSE_PORT, "/finesse/api/Teams", user, pass);
-  if (r.status !== 200) throw new UccxError(r.status, "finesse/api/Teams");
-
-  const j = parser.parse(r.body);
-  return asArray<any>(j?.Teams?.Team)
-    .map((t) => ({ id: String(t.id ?? ""), name: String(t.name ?? "") }))
-    .filter((t) => t.id)
-    .sort((a, b) => a.name.localeCompare(b.name));
-}
-
 export class UccxError extends Error {
   status: number;
   resource: string;

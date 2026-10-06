@@ -443,3 +443,109 @@ export async function getAbandoned(csqId: string, day?: string | null): Promise<
     try { conn?.closeSync(); } catch { /* noop */ }
   }
 }
+
+/** eventtype do agentstatedetail → rótulo exibido na tabela. */
+const AGENT_STATE: Record<number, string> = {
+  1: "Conectando",
+  2: "Indisponível",
+  3: "Disponível",
+  4: "Em Atendimento",
+  5: "Em Atendimento",
+  6: "Em Trabalho",
+  7: "Desconectado",
+};
+
+/** Agentes com a skill da fila, independente do time a que pertencem. */
+function skilledAgentsSubquery(csqId: number): string {
+  return `SELECT r2.resourceid
+            FROM resource r2, resourceskillmapping rsm, skillgroup sg, contactservicequeue csq
+           WHERE r2.resourceskillmapid = rsm.resourceskillmapid AND rsm.active = 't'
+             AND rsm.skillid = sg.skillid AND sg.active = 't'
+             AND sg.skillgroupid = csq.skillgroupid AND csq.active = 't'
+             AND csq.contactservicequeueid = ${csqId} AND r2.active = 't'`;
+}
+
+/** Códigos de pausa (reasoncode → rótulo). Opcional: sem a tabela, fica sem motivo. */
+async function reasonLabels(conn: any): Promise<Map<number, string>> {
+  const m = new Map<number, string>();
+  try {
+    const rows = await query(conn, `SELECT reasoncode code, reasonlabel label FROM reasoncode`);
+    for (const r of rows || []) {
+      const code = Number(r.code);
+      const label = String(r.label ?? "").trim();
+      if (!Number.isNaN(code) && label) m.set(code, label);
+    }
+  } catch { /* tabela indisponível nesta versão */ }
+  return m;
+}
+
+/**
+ * Lista nominal dos atendentes da fila, com o estado atual.
+ * Sai do próprio csqId, então cada dashboard mostra a sua gente — sem depender
+ * de escolher um time do Finesse.
+ */
+export async function agentsByQueue(csqId: string): Promise<import("./types").AgentConfig[] | null> {
+  const ibmdb = loadDriver();
+  if (!ibmdb) return null;
+  let conn: any;
+  try {
+    conn = await open(ibmdb);
+  } catch (e: any) {
+    console.error("[informix] agentsByQueue open:", e?.message);
+    return null;
+  }
+  try {
+    const id = Number(csqId);
+    const where = `WHERE snap.agentid = r.resourceid
+         AND snap.eventdatetime = (
+               SELECT MAX(s2.eventdatetime) FROM agentstatedetailsnapshot s2
+                WHERE s2.agentid = snap.agentid)
+         AND r.active = 't'
+         AND r.resourceid IN (${skilledAgentsSubquery(id)})`;
+
+    let rows: any[] | null = null;
+    let rich = true;
+    try {
+      rows = await query(
+        conn,
+        `SELECT r.resourceid id, r.resourcename name, r.resourcefirstname fname,
+                r.resourcelastname lname, r.extension ext, snap.eventtype et, snap.reasoncode rc
+           FROM resource r, agentstatedetailsnapshot snap
+          ${where}`,
+      );
+    } catch {
+      rich = false;
+      rows = await query(
+        conn,
+        `SELECT r.resourceid id, r.resourcename name, r.extension ext, snap.eventtype et
+           FROM resource r, agentstatedetailsnapshot snap
+          ${where}`,
+      );
+    }
+    if (!rows) return null;
+
+    const reasons = rich ? await reasonLabels(conn) : new Map<number, string>();
+
+    return rows.map((r) => {
+      const fname = String(r.fname ?? "").trim();
+      const lname = String(r.lname ?? "").trim();
+      const full = (fname || lname) ? `${fname} ${lname}`.trim() : String(r.name ?? "").trim();
+      const [first, ...rest] = full.split(/\s+/);
+      const code = r.rc == null ? NaN : Number(r.rc);
+      return {
+        id: String(r.id ?? ""),
+        firstName: fname || first || full,
+        lastName: lname || rest.join(" "),
+        extension: r.ext != null && String(r.ext).trim() ? String(r.ext).trim() : null,
+        team: null,
+        state: AGENT_STATE[Number(r.et)] ?? null,
+        reason: !Number.isNaN(code) && code > 0 ? reasons.get(code) ?? `Código ${code}` : null,
+      };
+    });
+  } catch (e: any) {
+    console.error("[informix] agentsByQueue:", e?.message);
+    return null;
+  } finally {
+    try { conn?.closeSync(); } catch { /* noop */ }
+  }
+}

@@ -117,12 +117,13 @@ export default function DashboardView({
     return () => { alive = false; if (timer.current) clearInterval(timer.current); };
   }, [queueId, config?.name]);
 
-  // Poll agents (Finesse Team API)
+  // Poll agents — atendentes da própria fila (banco), com o time como fallback
   useEffect(() => {
+    if (!queueId) return;
     let alive = true;
     async function pollAgents() {
       try {
-        const r = await fetch(`/api/agents${teamId ? `?team=${encodeURIComponent(teamId)}` : ""}`, { cache: "no-store" });
+        const r = await fetch(`/api/queues/${queueId}/agents${teamId ? `?team=${encodeURIComponent(teamId)}` : ""}`, { cache: "no-store" });
         const j = await r.json();
         if (!alive) return;
         if (j.ok) { setAgents(j.agents); setAgentsError(null); }
@@ -134,7 +135,7 @@ export default function DashboardView({
     pollAgents();
     agentTimer.current = setInterval(pollAgents, POLL_MS);
     return () => { alive = false; if (agentTimer.current) clearInterval(agentTimer.current); };
-  }, [teamId]);
+  }, [queueId, teamId]);
 
   if (cfgError) return (
     <div className="dash-full">
@@ -269,8 +270,8 @@ export default function DashboardView({
           ) : (
             <div className="empty"><div className="ico"><AlertTriangle color={agentsError ? "var(--crit)" : undefined} /></div>
               {agentsError
-                ? <><h4>Falha ao buscar atendentes</h4><p style={{ color: "var(--crit)" }}>{agentsError}</p><p style={{ color: "var(--text-mute)", fontSize: ".76rem" }}>Verifique FINESSE_TEAM_ID, UCCX_SUP_USER e UCCX_SUP_PASS no .env.local do servidor.</p></>
-                : <p>Buscando atendentes do Finesse…</p>}
+                ? <><h4>Falha ao buscar atendentes</h4><p style={{ color: "var(--crit)" }}>{agentsError}</p><p style={{ color: "var(--text-mute)", fontSize: ".76rem" }}>Sem o banco, a lista cai no Finesse: verifique UCCX_SUP_USER e UCCX_SUP_PASS no .env.local do servidor.</p></>
+                : <p>Buscando atendentes da fila…</p>}
             </div>
           )}
         </div>
