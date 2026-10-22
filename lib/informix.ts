@@ -465,18 +465,37 @@ function skilledAgentsSubquery(csqId: number): string {
              AND csq.contactservicequeueid = ${csqId} AND r2.active = 't'`;
 }
 
-/** Códigos de pausa (reasoncode → rótulo). Opcional: sem a tabela, fica sem motivo. */
-async function reasonLabels(conn: any): Promise<Map<number, string>> {
-  const m = new Map<number, string>();
+/**
+ * Códigos de pausa → rótulo, da tabela reasoncodelabelmap (code, label, category).
+ * O mesmo número pode existir em categorias diferentes (NOT_READY, LOGOUT...),
+ * então guarda por categoria e também solto, para quando a categoria não bater.
+ */
+interface ReasonMap { byCategory: Map<string, string>; byCode: Map<number, string>; }
+
+async function reasonLabels(conn: any): Promise<ReasonMap> {
+  const byCategory = new Map<string, string>();
+  const byCode = new Map<number, string>();
   try {
-    const rows = await query(conn, `SELECT reasoncode code, reasonlabel label FROM reasoncode`);
+    const rows = await query(conn, `SELECT code, label, category FROM reasoncodelabelmap`);
     for (const r of rows || []) {
       const code = Number(r.code);
       const label = String(r.label ?? "").trim();
-      if (!Number.isNaN(code) && label) m.set(code, label);
+      if (Number.isNaN(code) || !label) continue;
+      const cat = String(r.category ?? "").trim().toUpperCase();
+      if (cat) byCategory.set(`${cat}:${code}`, label);
+      if (!byCode.has(code)) byCode.set(code, label);
     }
-  } catch { /* tabela indisponível nesta versão */ }
-  return m;
+  } catch (e: any) {
+    console.error("[informix] reasonLabels:", e?.message);
+  }
+  return { byCategory, byCode };
+}
+
+/** Categoria do código de pausa, conforme o estado em que o agente está. */
+function reasonCategory(eventType: number): string {
+  if (eventType === 7) return "LOGOUT";
+  if (eventType === 1) return "LOGIN";
+  return "NOT_READY";
 }
 
 /**
@@ -538,14 +557,20 @@ export async function agentsByQueue(csqId: string): Promise<import("./types").Ag
     if (lastError) console.error("[informix] agentsByQueue consulta:", lastError?.message);
     if (!rows) return null;
 
-    const reasons = rich ? await reasonLabels(conn) : new Map<number, string>();
+    const reasons = rich ? await reasonLabels(conn) : null;
 
     return rows.map((r) => {
       const fname = String(r.fname ?? "").trim();
       const lname = String(r.lname ?? "").trim();
       const full = (fname || lname) ? `${fname} ${lname}`.trim() : String(r.name ?? "").trim();
       const [first, ...rest] = full.split(/\s+/);
+      const et = Number(r.et);
       const code = r.rc == null ? NaN : Number(r.rc);
+      const label = !Number.isNaN(code) && code > 0
+        ? reasons?.byCategory.get(`${reasonCategory(et)}:${code}`)
+          ?? reasons?.byCode.get(code)
+          ?? `Código ${code}`
+        : null;
       return {
         id: String(r.id ?? ""),
         firstName: fname || first || full,
@@ -553,8 +578,8 @@ export async function agentsByQueue(csqId: string): Promise<import("./types").Ag
         extension: r.ext != null && String(r.ext).trim() ? String(r.ext).trim() : null,
         team: null,
         // Sem registro de estado, o agente existe mas nunca entrou: conta como desconectado.
-        state: AGENT_STATE[Number(r.et)] ?? "Desconectado",
-        reason: !Number.isNaN(code) && code > 0 ? reasons.get(code) ?? `Código ${code}` : null,
+        state: AGENT_STATE[et] ?? "Desconectado",
+        reason: label,
       };
     });
   } catch (e: any) {
