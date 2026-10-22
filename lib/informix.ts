@@ -496,32 +496,46 @@ export async function agentsByQueue(csqId: string): Promise<import("./types").Ag
   }
   try {
     const id = Number(csqId);
-    const where = `WHERE snap.agentid = r.resourceid
-         AND snap.eventdatetime = (
-               SELECT MAX(s2.eventdatetime) FROM agentstatedetailsnapshot s2
-                WHERE s2.agentid = snap.agentid)
-         AND r.active = 't'
-         AND r.resourceid IN (${skilledAgentsSubquery(id)})`;
+    // LEFT JOIN: quem tem a skill aparece mesmo sem registro de estado (entra como desconectado).
+    const from = `FROM resource r
+          LEFT JOIN agentstatedetailsnapshot snap
+                 ON snap.agentid = r.resourceid
+                AND snap.eventdatetime = (
+                      SELECT MAX(s2.eventdatetime) FROM agentstatedetailsnapshot s2
+                       WHERE s2.agentid = r.resourceid)
+         WHERE r.active = 't'
+           AND r.resourceid IN (${skilledAgentsSubquery(id)})`;
+
+    // Da consulta mais completa para a mais simples: nem toda versao do banco tem
+    // as mesmas colunas, entao vale a primeira que rodar.
+    const variants: { sql: string; rich: boolean }[] = [
+      {
+        rich: true,
+        sql: `SELECT r.resourceid id, r.resourcename name, r.resourcefirstname fname,
+                     r.resourcelastname lname, r.extension ext, snap.eventtype et, snap.reasoncode rc
+                ${from}`,
+      },
+      {
+        rich: false,
+        sql: `SELECT r.resourceid id, r.resourcename name, r.extension ext, snap.eventtype et
+                ${from}`,
+      },
+    ];
 
     let rows: any[] | null = null;
-    let rich = true;
-    try {
-      rows = await query(
-        conn,
-        `SELECT r.resourceid id, r.resourcename name, r.resourcefirstname fname,
-                r.resourcelastname lname, r.extension ext, snap.eventtype et, snap.reasoncode rc
-           FROM resource r, agentstatedetailsnapshot snap
-          ${where}`,
-      );
-    } catch {
-      rich = false;
-      rows = await query(
-        conn,
-        `SELECT r.resourceid id, r.resourcename name, r.extension ext, snap.eventtype et
-           FROM resource r, agentstatedetailsnapshot snap
-          ${where}`,
-      );
+    let rich = false;
+    let lastError: any = null;
+    for (const v of variants) {
+      try {
+        rows = await query(conn, v.sql);
+        rich = v.rich;
+        lastError = null;
+        break;
+      } catch (e: any) {
+        lastError = e;
+      }
     }
+    if (lastError) console.error("[informix] agentsByQueue consulta:", lastError?.message);
     if (!rows) return null;
 
     const reasons = rich ? await reasonLabels(conn) : new Map<number, string>();
@@ -538,7 +552,8 @@ export async function agentsByQueue(csqId: string): Promise<import("./types").Ag
         lastName: lname || rest.join(" "),
         extension: r.ext != null && String(r.ext).trim() ? String(r.ext).trim() : null,
         team: null,
-        state: AGENT_STATE[Number(r.et)] ?? null,
+        // Sem registro de estado, o agente existe mas nunca entrou: conta como desconectado.
+        state: AGENT_STATE[Number(r.et)] ?? "Desconectado",
         reason: !Number.isNaN(code) && code > 0 ? reasons.get(code) ?? `Código ${code}` : null,
       };
     });
