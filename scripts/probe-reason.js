@@ -18,6 +18,32 @@ const path = require("path");
   }
 })();
 
+// O driver nativo só carrega com INFORMIXDIR e LD_LIBRARY_PATH apontando para as .so
+// (é o que o ecosystem.config.js faz no PM2). Fora do PM2, o script se reconfigura e
+// roda de novo em um processo filho com as variáveis certas.
+(function bootstrapDriver() {
+  if (process.env.YD_PROBE_CHILD) return;
+  const root = path.join(__dirname, "..", "node_modules/informixdb/installer/onedb-odbc-driver");
+  if (!fs.existsSync(root)) return;
+
+  const dirs = new Set();
+  (function walk(dir) {
+    let entries;
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const e of entries) {
+      const full = path.join(dir, e.name);
+      if (e.isDirectory()) walk(full);
+      else if (/\.so(\.|$)/.test(e.name)) dirs.add(dir);
+    }
+  })(root);
+
+  const env = { ...process.env, YD_PROBE_CHILD: "1", INFORMIXDIR: root };
+  env.LD_LIBRARY_PATH = [...dirs, process.env.LD_LIBRARY_PATH].filter(Boolean).join(":");
+
+  const r = require("child_process").spawnSync(process.execPath, [__filename], { env, stdio: "inherit" });
+  process.exit(r.status ?? 1);
+})();
+
 let ibmdb;
 try { ibmdb = require("informixdb"); }
 catch (e) { console.error("Driver informixdb indisponível:", e.message); process.exit(2); }
