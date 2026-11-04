@@ -188,7 +188,10 @@ async function kpisToday(conn: any, csqId: number): Promise<QueueKpis | null> {
     received,
     answered: num(r.answered),
     abandoned: num(r.abandoned),
-    slPct: received > 0 ? Math.round((num(r.metsl) / received) * 100) : 0,
+    // Nível de serviço = atendidas / recebidas, critério definido pelo cliente
+    // (Yamaha, 04/11/2026). A marcação metservicelevel do UCCX, que olha a meta
+    // de 45s da fila, continua sendo lida acima mas não entra mais na conta.
+    slPct: received > 0 ? Math.round((num(r.answered) / received) * 100) : 0,
     avgWaitSec: Math.round(num(r.avgwait)),
     avgHandleSec,
   };
