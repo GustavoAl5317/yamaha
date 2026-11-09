@@ -183,18 +183,19 @@ export default function DashboardView({
 
   return (
     <div className="dash-full">
-      <header className="noc-head" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "24px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "24px" }}>
-          <img src="/yamaha-logo.png" alt="Yamaha" className="noc-logo" style={{ height: "70px", objectFit: "contain", background: "white", padding: "6px 12px", borderRadius: "8px" }} />
+      {/* Relógio à esquerda, título ao centro, logo no canto superior direito. */}
+      <header className="noc-head" style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", gap: "16px", marginBottom: "24px" }}>
+        <div className="noc-clock">
+          <div className="t" style={{ fontSize: "1.2rem", fontWeight: "600" }}>{now.toLocaleTimeString("pt-BR")}</div>
+          <div className="d" style={{ fontSize: "0.85rem", color: "var(--text-mute)" }}>{now.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })}</div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "14px", justifySelf: "center" }}>
           <h1 className="noc-title" style={{ fontSize: "2.4rem", fontWeight: "700", margin: 0, letterSpacing: "-0.02em" }}>{title || config.name}</h1>
           {badge && (
             <span className="chip chip--wait" style={{ fontSize: ".72rem", alignSelf: "center" }}>{badge}</span>
           )}
         </div>
-        <div className="noc-clock" style={{ textAlign: "right" }}>
-          <div className="t" style={{ fontSize: "1.2rem", fontWeight: "600" }}>{now.toLocaleTimeString("pt-BR")}</div>
-          <div className="d" style={{ fontSize: "0.85rem", color: "var(--text-mute)" }}>{now.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })}</div>
-        </div>
+        <img src="/yamaha-logo.png" alt="Yamaha" className="noc-logo" style={{ height: "70px", objectFit: "contain", background: "white", padding: "6px 12px", borderRadius: "8px", justifySelf: "end" }} />
       </header>
 
       {/* KPI instruments */}
